@@ -2,7 +2,7 @@ import os
 import base64
 import io
 from openai import OpenAI
-from typing import Dict
+from typing import Dict, Optional
 from fastapi import WebSocket
 
 from app.services.exam_service import ExamService
@@ -79,18 +79,26 @@ class ConversationService:
 
             # Generate AI response (text) based on the updated history / section
             response = await self._generate_response(session_info, user_text)
+            ai_text = response["text"]
 
             # Send AI transcript back to client
             await websocket.send_json(
                 {
                     "type": "transcript",
-                    "text": response["text"],
+                    "text": ai_text,
                     "speaker": "ai",
                 }
             )
 
-            # TODO: Optionally, add TTS here and send back `audio_chunk` events
-            # so the frontend can play the AI's voice, for a full "phone call" effect.
+            # Synthesize examiner-style voice for the AI response and send as audio
+            audio_base64 = await self._synthesize_speech(ai_text)
+            if audio_base64:
+                await websocket.send_json(
+                    {
+                        "type": "audio_chunk",
+                        "audio": audio_base64,
+                    }
+                )
 
         except Exception as e:
             # Surface errors to the client so the UI can react
@@ -116,15 +124,26 @@ class ConversationService:
 
         # Generate AI response based on section
         response = await self._generate_response(session_info, text)
+        ai_text = response["text"]
 
         # Send AI transcript back in the same format the frontend expects
         await websocket.send_json(
             {
                 "type": "transcript",
-                "text": response["text"],
+                "text": ai_text,
                 "speaker": "ai",
             }
         )
+
+        # Also synthesize speech so the user hears the examiner
+        audio_base64 = await self._synthesize_speech(ai_text)
+        if audio_base64:
+            await websocket.send_json(
+                {
+                    "type": "audio_chunk",
+                    "audio": audio_base64,
+                }
+            )
 
     async def handle_time_expired(self, websocket: WebSocket, session_id: str):
         """Handle time expiration"""
@@ -190,6 +209,36 @@ Règles:
         )
 
         return {"text": ai_text}
+
+    async def _synthesize_speech(self, text: str) -> Optional[str]:
+        """
+        Turn AI text into spoken audio that the frontend can play.
+
+        We don't need streaming / realtime here – we just generate a short
+        examiner-style response for each turn.
+        """
+        if not text:
+            return None
+
+        try:
+            # Generate speech audio (MP3) with OpenAI TTS
+            speech = self.openai_client.audio.speech.create(
+                model="gpt-4o-mini-tts",  # non-realtime TTS model
+                voice="alloy",
+                input=text,
+                format="mp3",
+            )
+
+            # The SDK returns a binary stream – read to bytes
+            audio_bytes = speech.read()
+
+            # Encode to base64 so we can ship over WebSocket
+            audio_base64 = base64.b64encode(audio_bytes).decode("utf-8")
+            return audio_base64
+        except Exception as e:
+            # If TTS fails, we still keep the text experience working
+            print(f"TTS synthesis error: {e}")
+            return None
 
     async def cleanup_session(self, session_id: str):
         """Clean up session resources"""
