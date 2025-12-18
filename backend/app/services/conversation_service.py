@@ -1,4 +1,6 @@
 import os
+import base64
+import io
 from openai import OpenAI
 from typing import Dict
 from fastapi import WebSocket
@@ -39,20 +41,73 @@ class ConversationService:
         self, websocket: WebSocket, session_id: str, audio_data: str
     ):
         """Handle incoming audio chunk from client"""
-        # This will be implemented with OpenAI Realtime API
-        # For now, just acknowledge receipt
         session_info = self.active_sessions.get(session_id)
         if not session_info:
             return
 
-        # TODO: Forward to OpenAI Realtime API
-        # The actual implementation will use OpenAI Realtime API WebSocket
+        if not audio_data:
+            return
+
+        try:
+            # Decode base64 webm audio sent from the browser
+            audio_bytes = base64.b64decode(audio_data)
+
+            # Wrap in a file-like object for Whisper / transcription API
+            audio_file = io.BytesIO(audio_bytes)
+            audio_file.name = "audio.webm"
+
+            # Transcribe the user's speech
+            transcription = self.openai_client.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio_file,
+                # You can force language if you want: language="fr"
+            )
+
+            user_text = transcription.text.strip()
+            if not user_text:
+                return
+
+            # Send the user's transcript back to the client
+            await websocket.send_json(
+                {"type": "transcript", "text": user_text, "speaker": "user"}
+            )
+
+            # Add to conversation history
+            session_info["conversation_history"].append(
+                {"speaker": "user", "text": user_text, "timestamp": None}
+            )
+
+            # Generate AI response (text) based on the updated history / section
+            response = await self._generate_response(session_info, user_text)
+
+            # Send AI transcript back to client
+            await websocket.send_json(
+                {
+                    "type": "transcript",
+                    "text": response["text"],
+                    "speaker": "ai",
+                }
+            )
+
+            # TODO: Optionally, add TTS here and send back `audio_chunk` events
+            # so the frontend can play the AI's voice, for a full "phone call" effect.
+
+        except Exception as e:
+            # Surface errors to the client so the UI can react
+            await websocket.send_json(
+                {"type": "error", "message": f"Audio handling error: {e}"}
+            )
 
     async def handle_text_input(self, websocket: WebSocket, session_id: str, text: str):
         """Handle text input (fallback if audio fails)"""
         session_info = self.active_sessions.get(session_id)
         if not session_info:
             return
+
+        # Echo user's text as a transcript event so the UI shows it
+        await websocket.send_json(
+            {"type": "transcript", "text": text, "speaker": "user"}
+        )
 
         # Add to conversation history
         session_info["conversation_history"].append(
@@ -62,11 +117,12 @@ class ConversationService:
         # Generate AI response based on section
         response = await self._generate_response(session_info, text)
 
+        # Send AI transcript back in the same format the frontend expects
         await websocket.send_json(
             {
-                "type": "ai_response",
+                "type": "transcript",
                 "text": response["text"],
-                "audio": response.get("audio"),  # If using TTS
+                "speaker": "ai",
             }
         )
 
