@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 type StoredResults = {
-  version: 1;
+  sessionId: string;
   endedAtMs: number;
   endedReason: "user_stop" | "timeout";
   scenario: { sectionKey: "A" | "B"; id: number; prompt: string; time_limit_sec: number };
@@ -22,7 +22,6 @@ type StoredResults = {
 
 export function ResultsClient(props: { sectionParam: string; sid?: string }) {
   const sid = props.sid ?? "";
-  const storageKey = sid ? `tef:results:${sid}` : "";
 
   const [loaded, setLoaded] = useState(false);
   const [data, setData] = useState<StoredResults | null>(null);
@@ -39,34 +38,76 @@ export function ResultsClient(props: { sectionParam: string; sid?: string }) {
     setEvalJson(null);
     setEvalError(null);
 
-    if (!storageKey) {
+    if (!sid) {
       setLoaded(true);
       return;
     }
 
-    try {
-      const raw = sessionStorage.getItem(storageKey);
-      if (!raw) {
+    (async () => {
+      try {
+        const res = await fetch(`/api/results?sessionId=${encodeURIComponent(sid)}`);
+        if (res.ok) {
+          const json = await res.json();
+          const mapped: StoredResults = {
+            sessionId: json.sessionId,
+            endedAtMs: new Date(json.endedAt).getTime(),
+            endedReason: json.endedReason,
+            scenario: {
+              sectionKey: json.sectionKey,
+              id: json.scenarioId,
+              prompt: json.scenarioPrompt,
+              time_limit_sec: json.timeLimitSec,
+            },
+            finalTranscript: json.finalTranscript,
+            finalTranscriptForEval: json.finalTranscriptForEval,
+            evaluation: json.evaluation,
+          };
+          setData(mapped);
+          if (json.evaluation) {
+            setEvalJson(json.evaluation);
+            setEvalStatus("done");
+          }
+        } else if (res.status === 401 || res.status === 404) {
+          // Fallback to legacy sessionStorage (pre-auth sessions or unauthenticated use)
+          try {
+            const storageKey = `tef:results:${sid}`;
+            const raw = sessionStorage.getItem(storageKey);
+            if (raw) {
+              const legacy = JSON.parse(raw) as {
+                version: 1;
+                endedAtMs: number;
+                endedReason: "user_stop" | "timeout";
+                scenario: { sectionKey: "A" | "B"; id: number; prompt: string; time_limit_sec: number };
+                finalTranscript: TranscriptLine[];
+                finalTranscriptForEval: Array<{ role: "user" | "assistant"; text: string }>;
+                evaluation?: unknown;
+              };
+              if (legacy && legacy.version === 1) {
+                const mapped: StoredResults = {
+                  sessionId: sid,
+                  endedAtMs: legacy.endedAtMs,
+                  endedReason: legacy.endedReason,
+                  scenario: legacy.scenario,
+                  finalTranscript: legacy.finalTranscript,
+                  finalTranscriptForEval: legacy.finalTranscriptForEval,
+                  evaluation: legacy.evaluation,
+                };
+                setData(mapped);
+                if (legacy.evaluation) {
+                  setEvalJson(legacy.evaluation);
+                  setEvalStatus("done");
+                }
+              }
+            }
+          } catch {
+            // ignore
+          }
+        }
+      } finally {
         setLoaded(true);
-        return;
       }
-      const parsed = JSON.parse(raw) as StoredResults;
-      if (!parsed || parsed.version !== 1) {
-        setLoaded(true);
-        return;
-      }
-      setData(parsed);
-
-      if (parsed.evaluation) {
-        setEvalJson(parsed.evaluation);
-        setEvalStatus("done");
-      }
-    } catch {
-      // ignore
-    } finally {
-      setLoaded(true);
-    }
-  }, [storageKey]);
+    })();
+  }, [sid]);
 
   const canEvaluate = Boolean(data?.finalTranscriptForEval?.some((l) => l.role === "user" && l.text.trim()));
 
@@ -100,17 +141,14 @@ export function ResultsClient(props: { sectionParam: string; sid?: string }) {
         setEvalJson(json);
         setEvalStatus("done");
 
-        // Persist evaluation so refresh doesn't re-run (cost).
-        try {
-          const next: StoredResults = { ...data, evaluation: json };
-          sessionStorage.setItem(storageKey, JSON.stringify(next));
-        } catch {}
+        // We intentionally do not write back to Mongo here to keep the API simple;
+        // refreshing will re-evaluate only if there is no stored evaluation.
       } catch (e) {
         setEvalStatus("error");
         setEvalError(e instanceof Error ? e.message : String(e));
       }
     })();
-  }, [canEvaluate, data, evalStatus, storageKey]);
+  }, [canEvaluate, data, evalStatus]);
 
   return (
     <main className="mx-auto min-h-dvh max-w-4xl p-4 sm:p-6">

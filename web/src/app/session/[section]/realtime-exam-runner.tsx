@@ -506,33 +506,61 @@ export function RealtimeExamRunner(props: { scenario: Scenario; imageUrl: string
   );
 
   const persistAndNavigateToResults = useCallback(
-    (payload: {
+    async (payload: {
       endedAtMs: number;
       endedReason: StopReason;
       finalTranscript: TranscriptLine[];
       finalTranscriptForEval: Array<{ role: "user" | "assistant"; text: string }>;
     }) => {
       const sid = randomId();
-      const key = `tef:results:${sid}`;
       const sectionParam = scenario.sectionKey.toLowerCase();
 
+      const stored = {
+        sessionId: sid,
+        createdAt: new Date(payload.endedAtMs),
+        endedAt: new Date(payload.endedAtMs),
+        endedReason: payload.endedReason,
+        sectionKey: scenario.sectionKey,
+        scenarioId: scenario.id,
+        scenarioPrompt: scenario.prompt,
+        timeLimitSec: scenario.time_limit_sec,
+        finalTranscript: payload.finalTranscript,
+        finalTranscriptForEval: payload.finalTranscriptForEval,
+        evaluation: null,
+        evaluationStatus: "idle" as const,
+        evaluationError: null as string | null,
+      };
+
+      // Try to persist to the authenticated results API; fall back to sessionStorage if it fails.
       try {
-        const stored = {
-          version: 1 as const,
-          endedAtMs: payload.endedAtMs,
-          endedReason: payload.endedReason,
-          scenario: {
-            sectionKey: scenario.sectionKey,
-            id: scenario.id,
-            prompt: scenario.prompt,
-            time_limit_sec: scenario.time_limit_sec,
-          },
-          finalTranscript: payload.finalTranscript,
-          finalTranscriptForEval: payload.finalTranscriptForEval,
-        };
-        sessionStorage.setItem(key, JSON.stringify(stored));
+        const res = await fetch("/api/results", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(stored),
+        });
+        if (!res.ok) {
+          throw new Error(`Failed to save results (${res.status}).`);
+        }
       } catch {
-        // If sessionStorage fails, we still navigate (Results page will show a friendly message).
+        try {
+          const key = `tef:results:${sid}`;
+          const legacy = {
+            version: 1 as const,
+            endedAtMs: payload.endedAtMs,
+            endedReason: payload.endedReason,
+            scenario: {
+              sectionKey: scenario.sectionKey,
+              id: scenario.id,
+              prompt: scenario.prompt,
+              time_limit_sec: scenario.time_limit_sec,
+            },
+            finalTranscript: payload.finalTranscript,
+            finalTranscriptForEval: payload.finalTranscriptForEval,
+          };
+          sessionStorage.setItem(key, JSON.stringify(legacy));
+        } catch {
+          // ignore – results will simply not be persisted
+        }
       }
 
       router.push(`/session/${sectionParam}/results?sid=${encodeURIComponent(sid)}`);
@@ -611,7 +639,7 @@ export function RealtimeExamRunner(props: { scenario: Scenario; imageUrl: string
       teardownRealtime();
       setState("stopped");
 
-      persistAndNavigateToResults({
+      await persistAndNavigateToResults({
         endedAtMs,
         endedReason,
         finalTranscript,

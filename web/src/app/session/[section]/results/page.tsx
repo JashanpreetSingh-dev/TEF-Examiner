@@ -1,11 +1,19 @@
+import { redirect } from "next/navigation";
+import { auth } from "@clerk/nextjs/server";
 import { ResultsClient } from "./results-client";
 
 export default async function ResultsPage(props: {
-  params: Promise<{ section?: string }> | { section?: string };
-  searchParams?: Promise<Record<string, string | string[] | undefined>> | Record<string, string | string[] | undefined>;
+  params: Promise<{ section?: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { section } = await Promise.resolve(props.params);
-  const searchParams = await Promise.resolve(props.searchParams ?? {});
+  // Require authentication to view results
+  const { userId } = await auth();
+  if (!userId) {
+    redirect("/");
+  }
+
+  const { section } = await props.params;
+  const searchParams = props.searchParams ? await props.searchParams : {};
 
   const sidRaw = searchParams["sid"];
   const sid = typeof sidRaw === "string" ? sidRaw : Array.isArray(sidRaw) ? sidRaw[0] : undefined;

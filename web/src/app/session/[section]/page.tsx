@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { auth } from "@clerk/nextjs/server";
 
 import { getImageUrl, getRandomScenario, type Section } from "@/lib/kb";
 import { RealtimeExamRunner } from "./realtime-exam-runner";
@@ -8,9 +9,15 @@ import { ModeToggle } from "@/components/mode-toggle";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
-export default async function SessionPage(props: { params: Promise<{ section?: string }> | { section?: string } }) {
-  // Next.js 15+ may provide `params` as a Promise (sync dynamic APIs)
-  const { section } = await Promise.resolve(props.params);
+export default async function SessionPage(props: { params: Promise<{ section?: string }> }) {
+  // Require authentication to start an exam
+  const { userId } = await auth();
+  if (!userId) {
+    redirect("/");
+  }
+
+  // Next.js 16+ provides `params` as a Promise
+  const { section } = await props.params;
   if (!section) notFound();
 
   const normalized = section.toLowerCase();
