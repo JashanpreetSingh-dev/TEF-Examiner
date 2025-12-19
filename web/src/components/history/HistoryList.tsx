@@ -9,6 +9,7 @@ type HistoryItem = Pick<
 type EvaluationWithBand = {
   result?: {
     overall_band_estimate?: string;
+    cecr_level?: string;
   };
 };
 
@@ -35,7 +36,8 @@ export function HistoryList(props: { results: HistoryItem[] }) {
             endedReason: r.endedReason,
             overallBandEstimate:
               r.evaluation && typeof r.evaluation === "object" && "result" in r.evaluation
-                ? (r.evaluation as EvaluationWithBand).result?.overall_band_estimate
+                ? (r.evaluation as EvaluationWithBand).result?.cecr_level ||
+                  (r.evaluation as EvaluationWithBand).result?.overall_band_estimate
                 : undefined,
           }}
         />

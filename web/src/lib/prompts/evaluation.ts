@@ -29,6 +29,8 @@ export function buildRubricSystemPrompt(sectionKey: "A" | "B") {
     "OUTPUT FORMAT (hybrid): keep the existing keys for our UI, AND add CECR/CLB fields.",
     "Required keys (existing): overall_band_estimate, overall_comment, criteria, strengths, top_improvements, upgraded_sentences.",
     "Additional required keys (CECR/CLB): cecr_level, clb_equivalence, approximate_tef_band.",
+    "",
+    "IMPORTANT: overall_band_estimate must be a CECR level (A1, A2, B1, B2, C1, or C2). Do NOT use TEF band numbers (0-7). Use the CECR level format consistently.",
     "Additional required key (Model Answer): model_answer.",
     "",
     "model_answer: Provide a model answer (in French) that demonstrates how a strong candidate (B2-C1 level) would approach this task.",
