@@ -4,7 +4,43 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-export function EvaluationPanel(props: { evaluation: any }) {
+export function EvaluationPanel(props: {
+  status: "idle" | "loading" | "done" | "error";
+  evaluation?: any;
+  error?: string | null;
+}) {
+  if (props.status === "idle") {
+    return (
+      <Panel title="Évaluation">
+        <div className="text-sm text-muted-foreground">Cliquez sur “Évaluer” pour lancer l’analyse.</div>
+      </Panel>
+    );
+  }
+
+  if (props.status === "loading") {
+    return (
+      <Panel title="Évaluation">
+        <div className="space-y-2">
+          <div className="h-4 w-1/3 animate-pulse rounded bg-muted" />
+          <div className="h-4 w-2/3 animate-pulse rounded bg-muted" />
+          <div className="h-4 w-1/2 animate-pulse rounded bg-muted" />
+        </div>
+      </Panel>
+    );
+  }
+
+  if (props.status === "error") {
+    return (
+      <Panel title="Évaluation">
+        {props.error ? (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{props.error}</div>
+        ) : (
+          <div className="text-sm text-muted-foreground">Erreur inconnue.</div>
+        )}
+      </Panel>
+    );
+  }
+
   const result = props.evaluation?.result;
 
   if (!result) {
@@ -34,6 +70,12 @@ export function EvaluationPanel(props: { evaluation: any }) {
         <div className="flex items-center justify-between gap-3">
           <CardTitle>Évaluation</CardTitle>
           <div className="flex items-center gap-2">
+            {props.evaluation?.metrics?.eo1_question_count != null ? (
+              <Badge variant="outline">
+                Questions: {String(props.evaluation.metrics.eo1_question_count)}
+                {props.evaluation?.metrics?.eo1_question_target ? `/${String(props.evaluation.metrics.eo1_question_target)}` : ""}
+              </Badge>
+            ) : null}
             <Badge variant="secondary">{props.evaluation?.model ?? "?"}</Badge>
             <Badge variant="outline">{String(result.overall_band_estimate ?? "—")}</Badge>
           </div>

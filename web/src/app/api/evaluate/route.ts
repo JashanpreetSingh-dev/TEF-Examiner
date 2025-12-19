@@ -27,6 +27,43 @@ type EvalResult = {
   }>;
 };
 
+type EvalMetrics = {
+  eo1_question_count?: number;
+  eo1_question_target?: string;
+  eo1_question_count_method?: "punctuation" | "heuristic";
+};
+
+function estimateQuestionCount(candidateText: string): { count: number; method: "punctuation" | "heuristic" } {
+  const raw = candidateText ?? "";
+  const qMarks = (raw.match(/\?/g) ?? []).length;
+  if (qMarks > 0) return { count: qMarks, method: "punctuation" };
+
+  const text = raw
+    .toLowerCase()
+    .replace(/[’']/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!text) return { count: 0, method: "heuristic" };
+
+  const interrogativeStart = /^\s*(est-ce|est ce|est-ce que|est ce que|qu[' ]|quoi|quel(le)?s?|combien|où|ou|quand|comment|pourquoi|qui)\b/;
+  const interrogativeAny = /\b(est-ce|est ce|est-ce que|est ce que|pouvez[- ]vous|pourriez[- ]vous|avez[- ]vous|est[- ]il|est[- ]ce|y a[- ]t[- ]il|je (voudrais|voulais) savoir)\b/;
+
+  // Split into rough utterances; speech-to-text often lacks punctuation, so also split on newlines.
+  const parts = text
+    .split(/[\n.!;:]+/g)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  let count = 0;
+  for (const p of parts) {
+    if (interrogativeStart.test(p) || interrogativeAny.test(p)) count += 1;
+  }
+
+  // Avoid wildly over-counting in long paragraphs: cap to a sane range.
+  count = Math.max(0, Math.min(count, 30));
+  return { count, method: "heuristic" };
+}
+
 function buildRubricSystemPrompt(sectionKey: "A" | "B") {
   return [
     "You are a strict but helpful TEF Canada Expression Orale evaluator.",
@@ -76,6 +113,14 @@ export async function POST(req: Request) {
     .join("\n")
     .trim();
 
+  const metrics: EvalMetrics = {};
+  if (scenario.sectionKey === "A") {
+    const { count, method } = estimateQuestionCount(candidateText);
+    metrics.eo1_question_count = count;
+    metrics.eo1_question_target = "9–10";
+    metrics.eo1_question_count_method = method;
+  }
+
   const model = process.env.OPENAI_EVAL_MODEL ?? "gpt-4o-mini";
 
   const messages = [
@@ -87,6 +132,13 @@ export async function POST(req: Request) {
         `Scenario ID: ${scenario.id}`,
         `Time limit (sec): ${scenario.time_limit_sec ?? ""}`,
         `Prompt (French): ${scenario.prompt}`,
+        ...(scenario.sectionKey === "A"
+          ? [
+              `EO1 metric — estimated questions asked: ${metrics.eo1_question_count ?? 0} (target ${metrics.eo1_question_target}).`,
+              `Metric method: ${metrics.eo1_question_count_method ?? "heuristic"}.`,
+              "When scoring Task fulfillment / pertinence and Interaction, account for whether enough relevant questions were asked.",
+            ]
+          : []),
         "",
         "Candidate transcript (French):",
         candidateText || "(empty)",
@@ -131,6 +183,7 @@ export async function POST(req: Request) {
 
   return NextResponse.json({
     model,
+    metrics,
     result: parsed ?? { raw: content },
   });
 }

@@ -17,7 +17,7 @@ export async function GET() {
     );
   }
 
-  const model = process.env.OPENAI_REALTIME_MODEL ?? "gpt-4o-realtime-preview";
+  const model = process.env.OPENAI_REALTIME_MODEL ?? "gpt-4o-mini-realtime-preview";
   const voice = process.env.OPENAI_REALTIME_VOICE ?? "alloy";
 
   // API ref: "Client secrets" (Realtime sessions) — returns client_secret.value

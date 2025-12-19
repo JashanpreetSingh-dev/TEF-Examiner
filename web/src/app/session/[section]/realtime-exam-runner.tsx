@@ -1,9 +1,9 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { Scenario } from "@/lib/kb";
-import { cn } from "@/lib/utils";
 import { EvaluationPanel } from "@/components/session/EvaluationPanel";
 import { SessionControls } from "@/components/session/SessionControls";
 import { SessionStatusPanel } from "@/components/session/SessionStatusPanel";
@@ -11,6 +11,45 @@ import { TranscriptPanel } from "@/components/session/TranscriptPanel";
 import type { ConnState, Phase, TranscriptLine } from "@/components/session/types";
 
 
+
+type BrevityPreset = "short" | "medium" | "adaptive";
+
+function envBrevityPreset(): BrevityPreset {
+  const raw = String(process.env.NEXT_PUBLIC_EXAMINER_BREVITY_PRESET ?? "short").toLowerCase().trim();
+  if (raw === "medium" || raw === "adaptive") return raw;
+  return "short";
+}
+
+function envInt(name: string, fallback: number) {
+  const v = Number.parseInt(String((process.env as any)[name] ?? ""), 10);
+  return Number.isFinite(v) && v > 0 ? v : fallback;
+}
+
+function brevityFor(reason: "generic" | "warning" | "timeout"): { maxSentences: number; approxSeconds: number } {
+  const preset = envBrevityPreset();
+
+  const defaults =
+    preset === "medium"
+      ? { maxSentences: 3, approxSeconds: 25 }
+      : preset === "adaptive"
+        ? reason === "warning" || reason === "timeout"
+          ? { maxSentences: 1, approxSeconds: 10 }
+          : { maxSentences: 2, approxSeconds: 15 }
+        : { maxSentences: 2, approxSeconds: 15 };
+
+  const maxSentences = envInt("NEXT_PUBLIC_EXAMINER_MAX_SENTENCES", defaults.maxSentences);
+  const approxSeconds = envInt("NEXT_PUBLIC_EXAMINER_MAX_SECONDS", defaults.approxSeconds);
+  return { maxSentences, approxSeconds };
+}
+
+function makeBrevityInstruction(reason: "generic" | "warning" | "timeout") {
+  const { maxSentences, approxSeconds } = brevityFor(reason);
+  return (
+    `Brièveté obligatoire: ${maxSentences} phrase${maxSentences > 1 ? "s" : ""} maximum ` +
+    `(≈${approxSeconds} secondes). ` +
+    "Pas de listes, pas d’explications longues, pas de monologue."
+  );
+}
 
 function makeExamInstructions(scenario: Scenario, ocr: null | { raw_text: string; facts: Array<{ key: string; value: string }> }) {
   const base = [
@@ -20,6 +59,7 @@ function makeExamInstructions(scenario: Scenario, ocr: null | { raw_text: string
     "Objectif: simuler une interaction réaliste selon la tâche; rester naturel.",
     "Style: naturel, professionnel, mais pas robotique.",
     "IMPORTANT: ne corrige pas le candidat pendant l’épreuve. Pas de conseils pédagogiques, pas d’explications de grammaire. Pas de coaching.",
+    makeBrevityInstruction("generic"),
   ];
 
   if (scenario.sectionKey === "A") {
@@ -76,32 +116,75 @@ function randomId() {
   return Math.random().toString(16).slice(2) + Date.now().toString(16);
 }
 
+type RunnerMode = "live" | "results";
+type StopReason = "user_stop" | "timeout";
+type EvaluationStatus = "idle" | "loading" | "done" | "error";
+
+function isIgnorableRealtimeError(evt: any): boolean {
+  const code = evt?.error?.code;
+  if (code === "conversation_already_has_active_response") return true;
+
+  const msg = String(evt?.error?.message ?? "");
+  if (msg.includes("Conversation already has an active response in progress")) return true;
+
+  return false;
+}
+
+type SessionSummary = {
+  endedAtMs: number;
+  endedReason: StopReason;
+  finalTranscript: TranscriptLine[];
+  finalTranscriptForEval: Array<{ role: "user" | "assistant"; text: string }>;
+  evaluation: any | null;
+  evaluationStatus: EvaluationStatus;
+  evaluationError: string | null;
+};
+
+function sleep(ms: number) {
+  return new Promise<void>((r) => setTimeout(r, ms));
+}
+
+function toEvalTranscript(snapshot: TranscriptLine[]) {
+  return snapshot
+    .filter((t): t is TranscriptLine & { role: "user" | "assistant" } => t.role === "user" || t.role === "assistant")
+    .map((t) => ({ role: t.role, text: t.text }));
+}
+
+function toExaminerLines(snapshot: TranscriptLine[]) {
+  return snapshot.filter((t): t is TranscriptLine & { role: "assistant" } => t.role === "assistant");
+}
+
 export function RealtimeExamRunner(props: { scenario: Scenario; imageUrl: string }) {
   const { scenario } = props;
+  const router = useRouter();
 
+  const [mode, setMode] = useState<RunnerMode>("live");
   const [state, setState] = useState<ConnState>("idle");
   const [phase, setPhase] = useState<Phase>("none");
   const [error, setError] = useState<string | null>(null);
   const [transcript, setTranscript] = useState<TranscriptLine[]>([]);
   const [secondsLeft, setSecondsLeft] = useState<number>(scenario.time_limit_sec);
   const [prepSecondsLeft, setPrepSecondsLeft] = useState<number>(60);
-  const [isEvaluating, setIsEvaluating] = useState(false);
-  const [evaluation, setEvaluation] = useState<any>(null);
+  const [sessionSummary, setSessionSummary] = useState<SessionSummary | null>(null);
   const [isTranscriptOpen, setIsTranscriptOpen] = useState(false);
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const dcRef = useRef<RTCDataChannel | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+  const transcriptRef = useRef<TranscriptLine[]>([]);
   const timerRef = useRef<number | null>(null);
   const prepTimerRef = useRef<number | null>(null);
   const timeoutHandledRef = useRef(false);
-  const evaluationTriggeredRef = useRef(false);
   const phaseRef = useRef<Phase>("none");
   const examStartedRef = useRef(false);
   const awaitingResponseRef = useRef(false);
   const warn60SentRef = useRef(false);
   const warn10SentRef = useRef(false);
+  const sessionSummaryRef = useRef<SessionSummary | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  const recordingMimeRef = useRef<string>("");
 
   const [ocrStatus, setOcrStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [ocrData, setOcrData] = useState<null | { raw_text: string; facts: Array<{ key: string; value: string }> }>(null);
@@ -165,7 +248,7 @@ export function RealtimeExamRunner(props: { scenario: Scenario; imageUrl: string
     }, 1000);
   }, [stopPrepTimer]);
 
-  const cleanup = useCallback(() => {
+  const teardownRealtime = useCallback(() => {
     stopTimer();
     stopPrepTimer();
     setPhase("none");
@@ -193,9 +276,120 @@ export function RealtimeExamRunner(props: { scenario: Scenario; imageUrl: string
     localStreamRef.current = null;
 
     if (remoteAudioRef.current) {
+      try {
+        remoteAudioRef.current.pause();
+      } catch {}
+      const stream = remoteAudioRef.current.srcObject as MediaStream | null;
       remoteAudioRef.current.srcObject = null;
+      for (const t of stream?.getTracks?.() ?? []) {
+        try {
+          t.stop();
+        } catch {}
+      }
     }
-  }, [stopTimer]);
+  }, [stopPrepTimer, stopTimer]);
+
+  const startRecording = useCallback((stream: MediaStream) => {
+    try {
+      if (recorderRef.current) return;
+      recordedChunksRef.current = [];
+
+      const preferredTypes = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus"];
+      const mimeType = preferredTypes.find((t) => MediaRecorder.isTypeSupported(t)) ?? "";
+      recordingMimeRef.current = mimeType;
+
+      const rec = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      recorderRef.current = rec;
+
+      rec.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) recordedChunksRef.current.push(e.data);
+      };
+
+      // Small timeslice keeps memory stable for long sessions.
+      rec.start(1000);
+    } catch {
+      recorderRef.current = null;
+      recordedChunksRef.current = [];
+      recordingMimeRef.current = "";
+    }
+  }, []);
+
+  const stopRecording = useCallback(async (): Promise<Blob | null> => {
+    const rec = recorderRef.current;
+    if (!rec) return null;
+
+    if (rec.state === "inactive") {
+      recorderRef.current = null;
+      const chunks = recordedChunksRef.current;
+      recordedChunksRef.current = [];
+      const type = recordingMimeRef.current || chunks[0]?.type || "audio/webm";
+      return chunks.length ? new Blob(chunks, { type }) : null;
+    }
+
+    const done = new Promise<void>((resolve) => {
+      const prev = rec.onstop;
+      rec.onstop = (ev: Event) => {
+        try {
+          if (typeof prev === "function") prev.call(rec, ev);
+        } finally {
+          resolve();
+        }
+      };
+    });
+
+    try {
+      rec.stop();
+    } catch {}
+
+    await done;
+
+    recorderRef.current = null;
+    const chunks = recordedChunksRef.current;
+    recordedChunksRef.current = [];
+    const type = recordingMimeRef.current || chunks[0]?.type || "audio/webm";
+    return chunks.length ? new Blob(chunks, { type }) : null;
+  }, []);
+
+  const transcribeCandidateAudio = useCallback(async (audio: Blob | null): Promise<string> => {
+    if (!audio) return "";
+    try {
+      const fd = new FormData();
+      fd.set("audio", audio, "candidate.webm");
+      const res = await fetch("/api/transcribe", { method: "POST", body: fd });
+      if (!res.ok) return "";
+      const json = (await res.json().catch(() => null)) as null | { text?: unknown };
+      return typeof json?.text === "string" ? json.text.trim() : "";
+    } catch {
+      return "";
+    }
+  }, []);
+
+  const stopSession = useCallback(
+    (reason: StopReason) => {
+      // Capture a stable snapshot for Results mode + evaluation.
+      const finalTranscript = transcriptRef.current.slice();
+      const finalTranscriptForEval = toEvalTranscript(finalTranscript);
+
+      const summary: SessionSummary = {
+        endedAtMs: Date.now(),
+        endedReason: reason,
+        finalTranscript,
+        finalTranscriptForEval,
+        evaluation: null,
+        evaluationStatus: "idle",
+        evaluationError: null,
+      };
+
+      teardownRealtime();
+      setState("stopped");
+      setMode("results");
+      setSessionSummary(summary);
+      setIsTranscriptOpen(true);
+
+      return summary;
+    },
+    [teardownRealtime],
+  );
 
   const sendEvent = useCallback((evt: Record<string, unknown>) => {
     const dc = dcRef.current;
@@ -207,8 +401,10 @@ export function RealtimeExamRunner(props: { scenario: Scenario; imageUrl: string
     (reason: "start_eo1" | "user_turn" | "warning_60" | "warning_10") => {
       if (phaseRef.current !== "exam") return;
       const isWarning = reason === "warning_60" || reason === "warning_10";
+      // Never create a new response if one is already streaming.
+      // (OpenAI Realtime will emit a harmless error, but we don't want the UI to show it.)
+      if (awaitingResponseRef.current) return;
       if (!isWarning) {
-        if (awaitingResponseRef.current) return;
         awaitingResponseRef.current = true;
       }
 
@@ -230,11 +426,13 @@ export function RealtimeExamRunner(props: { scenario: Scenario; imageUrl: string
                 : "Répondez uniquement à la question du candidat. Si besoin, posez UNE question de clarification. Ne suggérez jamais quoi demander. Si l'annonce/OCR n'a pas le détail, inventez une réponse plausible et restez cohérent ensuite."
               : "Répondez en tant qu’ami(e) sceptique: choisissez un contre-argument approprié dans la liste fournie (paraphrase OK), puis demandez une justification/exemple. Ne créez pas de nouveaux contre-arguments.";
 
+      const brevity = makeBrevityInstruction(reason === "warning_60" || reason === "warning_10" ? "warning" : "generic");
+
       sendEvent({
         ...common,
         response: {
           ...(common as any).response,
-          instructions: instructionForReason,
+          instructions: `${brevity}\n${instructionForReason}`,
         },
       });
     },
@@ -244,19 +442,21 @@ export function RealtimeExamRunner(props: { scenario: Scenario; imageUrl: string
   const start = useCallback(async () => {
     setError(null);
     setTranscript([]);
-    setEvaluation(null);
-    evaluationTriggeredRef.current = false;
+    setMode("live");
+    setSessionSummary(null);
     examStartedRef.current = false;
     awaitingResponseRef.current = false;
     setPhase("none");
     phaseRef.current = "none";
     setSecondsLeft(scenario.time_limit_sec);
     setPrepSecondsLeft(60);
+    setIsTranscriptOpen(false);
 
     try {
       setState("requesting_mic");
       const localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
       localStreamRef.current = localStream;
+      startRecording(localStream);
 
       // OCR (EO1 only): extract ad facts so the AI can answer consistently without guessing.
       let ocrSnapshotLocal: null | { raw_text: string; facts: Array<{ key: string; value: string }> } = null;
@@ -343,6 +543,9 @@ export function RealtimeExamRunner(props: { scenario: Scenario; imageUrl: string
           } else if (type === "response.completed" || type === "response.done" || type === "response.finished") {
             awaitingResponseRef.current = false;
           } else if (type === "error") {
+            // Some Realtime errors are expected (e.g., trying to create a response while one is active).
+            // Don't surface them to the user or flip the whole UI into an error state.
+            if (isIgnorableRealtimeError(evt)) return;
             setError(JSON.stringify(evt));
             setState("error");
           }
@@ -388,8 +591,6 @@ export function RealtimeExamRunner(props: { scenario: Scenario; imageUrl: string
           instructions,
           voice: tokenJson.voice,
           modalities: ["audio", "text"],
-          // If supported, ask the server to transcribe user input audio too.
-          input_audio_transcription: { model: "gpt-4o-mini-transcribe" },
         },
       });
 
@@ -417,11 +618,11 @@ export function RealtimeExamRunner(props: { scenario: Scenario; imageUrl: string
       const msg = e instanceof Error ? e.message : String(e);
       setError(msg);
       setState("error");
-      cleanup();
+      teardownRealtime();
     }
   }, [
     appendLine,
-    cleanup,
+    teardownRealtime,
     maybeRequestModelResponse,
     prebrief,
     ocrData,
@@ -430,66 +631,128 @@ export function RealtimeExamRunner(props: { scenario: Scenario; imageUrl: string
     scenario.time_limit_sec,
     sendEvent,
     startPrepTimer,
+    startRecording,
     upsertAssistantDelta,
     upsertUserText,
   ]);
 
-  const evaluateNow = useCallback(async () => {
-    if (isEvaluating) return;
-    setIsEvaluating(true);
-    setError(null);
-    try {
-      const payload = {
-        scenario: {
-          sectionKey: scenario.sectionKey,
-          id: scenario.id,
-          prompt: scenario.prompt,
-          time_limit_sec: scenario.time_limit_sec,
-        },
-        transcript: transcript.map((t) => ({ role: t.role, text: t.text })),
-      };
-      const res = await fetch("/api/evaluate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(`Evaluation failed (${res.status}): ${text}`);
+  const runEvaluation = useCallback(
+    async (summaryOverride?: SessionSummary) => {
+      const summary = summaryOverride ?? sessionSummaryRef.current;
+      if (!summary) return;
+      if (summary.evaluationStatus === "loading") return;
+      if (!summary.finalTranscriptForEval.length) {
+        setSessionSummary((prev) => (prev ? { ...prev, evaluationStatus: "error", evaluationError: "Transcript vide." } : prev));
+        return;
       }
-      const json = await res.json();
-      setEvaluation(json);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      setError(msg);
-    } finally {
-      setIsEvaluating(false);
-    }
-  }, [isEvaluating, scenario.id, scenario.prompt, scenario.sectionKey, scenario.time_limit_sec, transcript]);
 
-  const stop = useCallback(async () => {
+      setSessionSummary((prev) =>
+        prev
+          ? {
+              ...prev,
+              evaluationStatus: "loading",
+              evaluationError: null,
+            }
+          : prev,
+      );
+      setError(null);
+
+      try {
+        const payload = {
+          scenario: {
+            sectionKey: scenario.sectionKey,
+            id: scenario.id,
+            prompt: scenario.prompt,
+            time_limit_sec: scenario.time_limit_sec,
+          },
+          transcript: summary.finalTranscriptForEval,
+        };
+
+        const res = await fetch("/api/evaluate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const text = await res.text().catch(() => "");
+          throw new Error(`Evaluation failed (${res.status}): ${text}`);
+        }
+        const json = await res.json();
+
+        setSessionSummary((prev) => (prev ? { ...prev, evaluation: json, evaluationStatus: "done" } : prev));
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        setSessionSummary((prev) => (prev ? { ...prev, evaluationStatus: "error", evaluationError: msg } : prev));
+      }
+    },
+    [scenario.id, scenario.prompt, scenario.sectionKey, scenario.time_limit_sec],
+  );
+
+  const persistAndNavigateToResults = useCallback(
+    (payload: {
+      endedAtMs: number;
+      endedReason: StopReason;
+      finalTranscript: TranscriptLine[];
+      finalTranscriptForEval: Array<{ role: "user" | "assistant"; text: string }>;
+    }) => {
+      const sid = randomId();
+      const key = `tef:results:${sid}`;
+      const sectionParam = scenario.sectionKey.toLowerCase();
+
+      try {
+        const stored = {
+          version: 1 as const,
+          endedAtMs: payload.endedAtMs,
+          endedReason: payload.endedReason,
+          scenario: {
+            sectionKey: scenario.sectionKey,
+            id: scenario.id,
+            prompt: scenario.prompt,
+            time_limit_sec: scenario.time_limit_sec,
+          },
+          finalTranscript: payload.finalTranscript,
+          finalTranscriptForEval: payload.finalTranscriptForEval,
+        };
+        sessionStorage.setItem(key, JSON.stringify(stored));
+      } catch {
+        // If sessionStorage fails, we still navigate (Results page will show a friendly message).
+      }
+
+      router.push(`/session/${sectionParam}/results?sid=${encodeURIComponent(sid)}`);
+    },
+    [router, scenario.id, scenario.prompt, scenario.sectionKey, scenario.time_limit_sec],
+  );
+
+  const stopAndMaybeEvaluate = useCallback(async () => {
     setState("stopping");
-    try {
-      // Best-effort: ask the model to wrap up quickly before we close.
-      sendEvent({
-        type: "response.create",
-        response: {
-          modalities: ["audio", "text"],
-          instructions:
-            "Merci. Conclus en 1-2 phrases maximum et dis clairement que l’épreuve est terminée. Pas d’analyse, pas de feedback.",
-        },
-      });
 
-      await new Promise((r) => setTimeout(r, 600));
-    } finally {
-      cleanup();
-      setState("stopped");
-      if (!evaluationTriggeredRef.current) {
-        evaluationTriggeredRef.current = true;
-        void evaluateNow();
-      }
-    }
-  }, [cleanup, evaluateNow, sendEvent]);
+    const audio = await stopRecording();
+    const candidateText = await transcribeCandidateAudio(audio);
+
+    const endedAtMs = Date.now();
+    const endedReason: StopReason = "user_stop";
+
+    const baseTranscript = transcriptRef.current.slice();
+    const finalTranscript: TranscriptLine[] = candidateText
+      ? [...baseTranscript, { id: randomId(), role: "user", text: candidateText }]
+      : baseTranscript;
+
+    const examinerLines = toExaminerLines(finalTranscript);
+    const transcriptForEval: Array<{ role: "user" | "assistant"; text: string }> = [
+      ...examinerLines.map((l) => ({ role: "assistant" as const, text: l.text })),
+      ...(candidateText ? [{ role: "user" as const, text: candidateText }] : []),
+    ];
+
+    teardownRealtime();
+    setState("stopped");
+
+    persistAndNavigateToResults({
+      endedAtMs,
+      endedReason,
+      finalTranscript,
+      finalTranscriptForEval: transcriptForEval,
+    });
+  }, [persistAndNavigateToResults, stopRecording, teardownRealtime, transcribeCandidateAudio]);
 
   const handleTimeout = useCallback(async () => {
     if (timeoutHandledRef.current) return;
@@ -497,25 +760,46 @@ export function RealtimeExamRunner(props: { scenario: Scenario; imageUrl: string
     setState("stopping");
 
     try {
-      // Ask for a short wrap-up (10–15 seconds), then close the connection.
+      // Timeout -> stop immediately and auto-evaluate based on the stop-time transcript snapshot.
       sendEvent({
         type: "response.create",
         response: {
           modalities: ["audio", "text"],
           instructions:
+            `${makeBrevityInstruction("timeout")}\n` +
             "Le temps est écoulé. Demande au candidat de conclure en 10–15 secondes. Ensuite, conclus toi-même en 1 phrase et annonce la fin de l’épreuve.",
         },
       });
-      await new Promise((r) => setTimeout(r, 12000));
+      await sleep(300);
     } finally {
-      cleanup();
+      const audio = await stopRecording();
+      const candidateText = await transcribeCandidateAudio(audio);
+
+      const endedAtMs = Date.now();
+      const endedReason: StopReason = "timeout";
+
+      const baseTranscript = transcriptRef.current.slice();
+      const finalTranscript: TranscriptLine[] = candidateText
+        ? [...baseTranscript, { id: randomId(), role: "user", text: candidateText }]
+        : baseTranscript;
+
+      const examinerLines = toExaminerLines(finalTranscript);
+      const transcriptForEval: Array<{ role: "user" | "assistant"; text: string }> = [
+        ...examinerLines.map((l) => ({ role: "assistant" as const, text: l.text })),
+        ...(candidateText ? [{ role: "user" as const, text: candidateText }] : []),
+      ];
+
+      teardownRealtime();
       setState("stopped");
-      if (!evaluationTriggeredRef.current) {
-        evaluationTriggeredRef.current = true;
-        void evaluateNow();
-      }
+
+      persistAndNavigateToResults({
+        endedAtMs,
+        endedReason,
+        finalTranscript,
+        finalTranscriptForEval: transcriptForEval,
+      });
     }
-  }, [cleanup, evaluateNow, sendEvent]);
+  }, [persistAndNavigateToResults, sendEvent, stopRecording, teardownRealtime, transcribeCandidateAudio]);
 
   useEffect(() => {
     // Reset timer if user navigates to another scenario
@@ -523,14 +807,15 @@ export function RealtimeExamRunner(props: { scenario: Scenario; imageUrl: string
     setPrepSecondsLeft(60);
     setTranscript([]);
     setError(null);
-    setEvaluation(null);
-    evaluationTriggeredRef.current = false;
+    setMode("live");
+    setSessionSummary(null);
     examStartedRef.current = false;
     awaitingResponseRef.current = false;
     setPhase("none");
     phaseRef.current = "none";
     setState("idle");
-    cleanup();
+    teardownRealtime();
+    void stopRecording();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scenario.id]);
 
@@ -576,13 +861,30 @@ export function RealtimeExamRunner(props: { scenario: Scenario; imageUrl: string
     }
   }, [maybeRequestModelResponse, secondsLeft, state]);
 
+  useEffect(() => {
+    transcriptRef.current = transcript;
+  }, [transcript]);
+
+  useEffect(() => {
+    sessionSummaryRef.current = sessionSummary;
+  }, [sessionSummary]);
+
   return (
-    <div className="flex h-full flex-col gap-4">
+    <div
+      className={
+        mode === "results"
+          ? "flex h-full flex-col gap-4"
+          : "mx-auto flex h-full w-full max-w-md flex-col justify-center gap-4"
+      }
+    >
       <SessionStatusPanel
+        mode={mode}
         state={state}
         phase={phase}
         secondsLeft={secondsLeft}
         prepSecondsLeft={prepSecondsLeft}
+        endedAtMs={sessionSummary?.endedAtMs}
+        endedReason={sessionSummary?.endedReason}
         showOcr={scenario.sectionKey === "A"}
         ocrStatus={ocrStatus}
       />
@@ -594,18 +896,33 @@ export function RealtimeExamRunner(props: { scenario: Scenario; imageUrl: string
       ) : null}
 
       <SessionControls
+        mode={mode}
         onStart={start}
-        onStop={stop}
-        onEvaluate={evaluateNow}
+        onEvaluate={mode === "live" ? stopAndMaybeEvaluate : () => void runEvaluation()}
         canStart={state === "idle" || state === "stopped" || state === "error"}
-        canStop={state === "connected"}
-        canEvaluate={!isEvaluating && (state === "stopped" || state === "error")}
-        isEvaluating={isEvaluating}
+        canEvaluate={
+          mode === "live"
+            ? state !== "stopping"
+            : (sessionSummary?.evaluationStatus ?? "idle") !== "loading" && Boolean(sessionSummary?.finalTranscriptForEval.length)
+        }
+        evaluationStatus={sessionSummary?.evaluationStatus}
       />
 
-      <TranscriptPanel transcript={transcript} open={isTranscriptOpen} onToggleOpen={setIsTranscriptOpen} />
+      {mode === "results" ? (
+        <TranscriptPanel
+          transcript={sessionSummary?.finalTranscript ?? []}
+          open={isTranscriptOpen}
+          onToggleOpen={setIsTranscriptOpen}
+        />
+      ) : null}
 
-      {evaluation ? <EvaluationPanel evaluation={evaluation} /> : null}
+      {mode === "results" ? (
+        <EvaluationPanel
+          status={sessionSummary?.evaluationStatus ?? "idle"}
+          evaluation={sessionSummary?.evaluation}
+          error={sessionSummary?.evaluationError}
+        />
+      ) : null}
     </div>
   );
 }

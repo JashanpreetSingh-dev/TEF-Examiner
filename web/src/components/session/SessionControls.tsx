@@ -1,27 +1,37 @@
 import { Button } from "@/components/ui/button";
 
 export function SessionControls(props: {
+  mode: "live" | "results";
   onStart?: () => void;
-  onStop?: () => void;
   onEvaluate?: () => void;
   canStart: boolean;
-  canStop: boolean;
   canEvaluate: boolean;
-  isEvaluating?: boolean;
+  evaluationStatus?: "idle" | "loading" | "done" | "error";
 }) {
-  const { onStart, onStop, onEvaluate, canStart, canStop, canEvaluate, isEvaluating } = props;
+  const { mode, onStart, onEvaluate, canStart, canEvaluate, evaluationStatus } = props;
+  const isEvaluating = evaluationStatus === "loading";
 
   return (
-    <div className="flex flex-wrap gap-2">
-      <Button onClick={onStart} disabled={!canStart}>
-        Démarrer
-      </Button>
-      <Button variant="outline" onClick={onStop} disabled={!canStop}>
-        Arrêter
-      </Button>
-      <Button variant="secondary" onClick={onEvaluate} disabled={!canEvaluate}>
-        {isEvaluating ? "Évaluation..." : "Évaluer"}
-      </Button>
+    <div className="flex flex-wrap justify-center gap-2">
+      {mode === "live" ? (
+        <>
+          <Button onClick={onStart} disabled={!canStart}>
+            Démarrer
+          </Button>
+          <Button variant="secondary" onClick={onEvaluate} disabled={!canEvaluate}>
+            Évaluer
+          </Button>
+        </>
+      ) : (
+        <>
+          <Button variant="secondary" onClick={onEvaluate} disabled={!canEvaluate}>
+            {isEvaluating ? "Évaluation..." : "Évaluer"}
+          </Button>
+          <Button variant="outline" onClick={onStart} disabled={!canStart}>
+            Recommencer
+          </Button>
+        </>
+      )}
     </div>
   );
 }

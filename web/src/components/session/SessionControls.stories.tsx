@@ -5,8 +5,8 @@ const meta: Meta<typeof SessionControls> = {
   title: "session/SessionControls",
   component: SessionControls,
   args: {
+    mode: "live",
     onStart: () => {},
-    onStop: () => {},
     onEvaluate: () => {},
   },
 };
@@ -16,37 +16,37 @@ type Story = StoryObj<typeof SessionControls>;
 
 export const Idle: Story = {
   args: {
+    mode: "live",
     canStart: true,
-    canStop: false,
     canEvaluate: false,
-    isEvaluating: false,
+    evaluationStatus: "idle",
   },
 };
 
 export const Connected: Story = {
   args: {
+    mode: "live",
     canStart: false,
-    canStop: true,
-    canEvaluate: false,
-    isEvaluating: false,
-  },
-};
-
-export const StoppedWithEval: Story = {
-  args: {
-    canStart: true,
-    canStop: false,
     canEvaluate: true,
-    isEvaluating: false,
+    evaluationStatus: "idle",
   },
 };
 
-export const Evaluating: Story = {
+export const ResultsReady: Story = {
   args: {
+    mode: "results",
     canStart: true,
-    canStop: false,
+    canEvaluate: true,
+    evaluationStatus: "idle",
+  },
+};
+
+export const ResultsEvaluating: Story = {
+  args: {
+    mode: "results",
+    canStart: true,
     canEvaluate: false,
-    isEvaluating: true,
+    evaluationStatus: "loading",
   },
 };
 

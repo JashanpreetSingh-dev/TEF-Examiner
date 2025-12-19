@@ -9,8 +9,28 @@ const meta: Meta<typeof EvaluationPanel> = {
 export default meta;
 type Story = StoryObj<typeof EvaluationPanel>;
 
+export const Idle: Story = {
+  args: {
+    status: "idle",
+  },
+};
+
+export const Loading: Story = {
+  args: {
+    status: "loading",
+  },
+};
+
+export const Error: Story = {
+  args: {
+    status: "error",
+    error: "Evaluation failed (500): internal error",
+  },
+};
+
 export const SchemaObjectCriteria: Story = {
   args: {
+    status: "done",
     evaluation: {
       model: "gpt-4o-mini",
       result: {
@@ -38,6 +58,7 @@ export const SchemaObjectCriteria: Story = {
 
 export const SchemaArrayCriteria: Story = {
   args: {
+    status: "done",
     evaluation: {
       model: "gpt-4o-mini",
       result: {

@@ -67,9 +67,6 @@ function imagePathFor(sectionKey: "A" | "B", id: number) {
 }
 
 export async function POST(req: Request) {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return NextResponse.json({ error: "Missing OPENAI_API_KEY on server." }, { status: 500 });
-
   let body: OcrBody;
   try {
     body = (await req.json()) as OcrBody;
@@ -96,6 +93,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ cached: true, source: "disk", result: diskHit });
     }
   }
+
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return NextResponse.json({ error: "Missing OPENAI_API_KEY on server." }, { status: 500 });
 
   const imgPath = imagePathFor(sectionKey, id);
   let buf: Buffer;

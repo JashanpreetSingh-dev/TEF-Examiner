@@ -5,10 +5,8 @@ import { notFound } from "next/navigation";
 import { getImageUrl, getRandomScenario, type Section } from "@/lib/kb";
 import { RealtimeExamRunner } from "./realtime-exam-runner";
 import { ModeToggle } from "@/components/mode-toggle";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Card, CardContent } from "@/components/ui/card";
 
 export default async function SessionPage(props: { params: Promise<{ section?: string }> | { section?: string } }) {
   // Next.js 15+ may provide `params` as a Promise (sync dynamic APIs)
@@ -25,37 +23,23 @@ export default async function SessionPage(props: { params: Promise<{ section?: s
   const imageUrl = getImageUrl(sectionKey, scenario.id);
 
   return (
-    <main className="mx-auto max-w-6xl p-6">
-      <div className="space-y-6">
-        <header className="flex flex-wrap items-start justify-between gap-4">
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="secondary">TEF Canada</Badge>
-              <Badge variant="outline">{sectionKey === "A" ? "EO1" : "EO2"}</Badge>
-              <Badge variant="secondary">{Math.round(scenario.time_limit_sec / 60)} min</Badge>
-              <Badge variant="outline">Scenario #{scenario.id}</Badge>
-            </div>
-            <h1 className="text-2xl font-semibold tracking-tight">
-              {sectionKey === "A" ? "Section A — Interaction" : "Section B — Argumentation"}
-            </h1>
-            <p className="text-sm text-muted-foreground">{scenario.prompt}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button asChild variant="outline">
-              <Link href="/">Retour</Link>
-            </Button>
-            <ModeToggle />
-          </div>
+    <main className="mx-auto h-dvh max-w-6xl overflow-hidden p-4 sm:p-6">
+      <div className="flex h-full flex-col gap-6">
+        <header className="flex items-start justify-between gap-4">
+          <Button asChild variant="outline">
+            <Link href="/">Retour</Link>
+          </Button>
+          <ModeToggle />
         </header>
 
-        <div className="grid gap-6 lg:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Document</CardTitle>
-              <CardDescription>Image sélectionnée aléatoirement pour ce scénario.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="aspect-[4/3] overflow-hidden rounded-lg border bg-muted">
+        <p className="text-sm text-muted-foreground overflow-hidden [display:-webkit-box] [-webkit-line-clamp:2] [-webkit-box-orient:vertical]">
+          {scenario.prompt}
+        </p>
+
+        <div className="grid flex-1 min-h-0 gap-6 lg:grid-cols-2">
+          <Card className="flex min-h-0 flex-col">
+            <CardContent className="flex flex-1 min-h-0 flex-col p-3">
+              <div className="flex-1 min-h-0 overflow-hidden rounded-lg border bg-muted">
                 <Image
                   alt={`Image scenario ${scenario.id}`}
                   src={imageUrl}
@@ -65,39 +49,14 @@ export default async function SessionPage(props: { params: Promise<{ section?: s
                   priority
                 />
               </div>
-
-              <Accordion type="single" collapsible>
-                <AccordionItem value="hints">
-                  <AccordionTrigger>
-                    {scenario.sectionKey === "A" ? "Thèmes possibles (pour vous)" : "Contre-arguments (référence)"}
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    {scenario.sectionKey === "A" ? (
-                      <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-                        {scenario.suggested_questions.map((q) => (
-                          <li key={q}>{q}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-                        {scenario.counter_arguments.map((c) => (
-                          <li key={c}>{c}</li>
-                        ))}
-                      </ul>
-                    )}
-                  </AccordionContent>
-                </AccordionItem>
-              </Accordion>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Session</CardTitle>
-              <CardDescription>Conversation en temps réel + transcription + évaluation.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <RealtimeExamRunner scenario={scenario} imageUrl={imageUrl} />
+          <Card className="flex min-h-0 flex-col">
+            <CardContent className="flex-1 min-h-0 p-3">
+              <div className="h-full min-h-0">
+                <RealtimeExamRunner scenario={scenario} imageUrl={imageUrl} />
+              </div>
             </CardContent>
           </Card>
         </div>
