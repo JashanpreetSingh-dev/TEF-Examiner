@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 
 import { ModeToggle } from "@/components/mode-toggle";
@@ -9,9 +10,11 @@ import { TranscriptPanel } from "@/components/session/TranscriptPanel";
 import type { TranscriptLine } from "@/components/session/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getImageUrl } from "@/lib/kb";
 
 type StoredResults = {
   sessionId: string;
+  createdAtMs?: number;
   endedAtMs: number;
   endedReason: "user_stop" | "timeout";
   scenario: { sectionKey: "A" | "B"; id: number; prompt: string; time_limit_sec: number };
@@ -50,6 +53,7 @@ export function ResultsClient(props: { sectionParam: string; sid?: string }) {
           const json = await res.json();
           const mapped: StoredResults = {
             sessionId: json.sessionId,
+            createdAtMs: json.createdAt ? new Date(json.createdAt).getTime() : undefined,
             endedAtMs: new Date(json.endedAt).getTime(),
             endedReason: json.endedReason,
             scenario: {
@@ -85,6 +89,7 @@ export function ResultsClient(props: { sectionParam: string; sid?: string }) {
               if (legacy && legacy.version === 1) {
                 const mapped: StoredResults = {
                   sessionId: sid,
+                  createdAtMs: legacy.endedAtMs,
                   endedAtMs: legacy.endedAtMs,
                   endedReason: legacy.endedReason,
                   scenario: legacy.scenario,
@@ -141,8 +146,30 @@ export function ResultsClient(props: { sectionParam: string; sid?: string }) {
         setEvalJson(json);
         setEvalStatus("done");
 
-        // We intentionally do not write back to Mongo here to keep the API simple;
-        // refreshing will re-evaluate only if there is no stored evaluation.
+        // Persist evaluation back to Mongo so history/results views don't re-run it.
+        try {
+          await fetch("/api/results", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              sessionId: data.sessionId,
+              createdAt: new Date(data.createdAtMs ?? data.endedAtMs).toISOString(),
+              endedAt: new Date(data.endedAtMs).toISOString(),
+              endedReason: data.endedReason,
+              sectionKey: data.scenario.sectionKey,
+              scenarioId: data.scenario.id,
+              scenarioPrompt: data.scenario.prompt,
+              timeLimitSec: data.scenario.time_limit_sec,
+              finalTranscript: data.finalTranscript,
+              finalTranscriptForEval: data.finalTranscriptForEval,
+              evaluation: json,
+              evaluationStatus: "done",
+              evaluationError: null,
+            }),
+          });
+        } catch {
+          // ignore persistence errors; evaluation is still shown in the UI
+        }
       } catch (e) {
         setEvalStatus("error");
         setEvalError(e instanceof Error ? e.message : String(e));
@@ -179,9 +206,20 @@ export function ResultsClient(props: { sectionParam: string; sid?: string }) {
             )}
           </CardHeader>
           {data ? (
-            <CardContent className="space-y-2">
-              <div className="text-sm text-muted-foreground overflow-hidden [display:-webkit-box] [-webkit-line-clamp:3] [-webkit-box-orient:vertical]">
-                {data.scenario.prompt}
+            <CardContent className="space-y-3">
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <div className="relative h-28 w-full overflow-hidden rounded-md border bg-muted sm:h-24 sm:w-40">
+                  <Image
+                    src={getImageUrl(data.scenario.sectionKey, data.scenario.id)}
+                    alt={`Image scénario ${data.scenario.id}`}
+                    fill
+                    sizes="(min-width: 640px) 160px, 100vw"
+                    className="object-contain"
+                  />
+                </div>
+                <div className="text-sm text-muted-foreground overflow-hidden [display:-webkit-box] [-webkit-line-clamp:5] [-webkit-box-orient:vertical]">
+                  {data.scenario.prompt}
+                </div>
               </div>
             </CardContent>
           ) : null}

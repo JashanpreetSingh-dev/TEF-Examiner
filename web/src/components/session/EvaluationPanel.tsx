@@ -75,9 +75,9 @@ export function EvaluationPanel(props: {
   return (
     <Card>
       <CardHeader className="space-y-2">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
           <CardTitle>Évaluation</CardTitle>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5 sm:justify-end">
             {evalObj && isRecord(evalObj.metrics) && evalObj.metrics.eo1_question_count != null ? (
               <Badge variant="outline">
                 Questions: {String(evalObj.metrics.eo1_question_count)}

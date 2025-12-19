@@ -3,7 +3,7 @@ import type { ExamResultDocument } from "@/lib/models/ExamResult";
 
 type HistoryItem = Pick<
   ExamResultDocument,
-  "sessionId" | "sectionKey" | "scenarioPrompt" | "endedAt" | "endedReason" | "evaluation"
+  "sessionId" | "sectionKey" | "scenarioId" | "scenarioPrompt" | "endedAt" | "endedReason" | "evaluation"
 >;
 
 type EvaluationWithBand = {
@@ -29,6 +29,7 @@ export function HistoryList(props: { results: HistoryItem[] }) {
           result={{
             sessionId: r.sessionId,
             sectionKey: r.sectionKey,
+            scenarioId: r.scenarioId,
             scenarioPrompt: r.scenarioPrompt,
             endedAt: r.endedAt,
             endedReason: r.endedReason,
