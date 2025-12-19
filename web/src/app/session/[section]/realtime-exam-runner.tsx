@@ -3,25 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { Scenario } from "@/lib/kb";
-import { cn, formatTimeMMSS } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { EvaluationPanel } from "@/components/session/EvaluationPanel";
+import { SessionControls } from "@/components/session/SessionControls";
+import { SessionStatusPanel } from "@/components/session/SessionStatusPanel";
+import { TranscriptPanel } from "@/components/session/TranscriptPanel";
+import type { ConnState, Phase, TranscriptLine } from "@/components/session/types";
 
-type ConnState =
-  | "idle"
-  | "requesting_mic"
-  | "fetching_token"
-  | "connecting"
-  | "connected"
-  | "stopping"
-  | "stopped"
-  | "error";
 
-type Phase = "none" | "prebrief" | "prep" | "exam";
-
-type TranscriptLine = {
-  id: string;
-  role: "user" | "assistant" | "system";
-  text: string;
-};
 
 function makeExamInstructions(scenario: Scenario, ocr: null | { raw_text: string; facts: Array<{ key: string; value: string }> }) {
   const base = [
@@ -589,43 +578,14 @@ export function RealtimeExamRunner(props: { scenario: Scenario; imageUrl: string
 
   return (
     <div className="flex h-full flex-col gap-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="space-y-0.5">
-          <div className="text-sm font-medium">Session Realtime</div>
-          <div className="text-xs text-zinc-600">
-            État:{" "}
-            <span className={cn(state === "connected" ? "text-emerald-700" : state === "error" ? "text-red-700" : "")}>
-              {state}
-            </span>
-          </div>
-          <div className="text-xs text-zinc-600">
-            Phase: <span className="font-medium">{phase}</span>
-          </div>
-          {scenario.sectionKey === "A" ? (
-            <div className="text-xs text-zinc-600">
-              OCR:{" "}
-              <span
-                className={cn(
-                  ocrStatus === "ready" ? "text-emerald-700" : ocrStatus === "error" ? "text-red-700" : "",
-                )}
-              >
-                {ocrStatus}
-              </span>
-            </div>
-          ) : null}
-        </div>
-        <div className="rounded-lg border bg-zinc-50 px-3 py-1.5 text-sm font-medium tabular-nums">
-          {phase === "prep" ? (
-            <span>
-              Prep: {formatTimeMMSS(prepSecondsLeft)}
-            </span>
-          ) : (
-            <span>
-              Temps: {formatTimeMMSS(secondsLeft)}
-            </span>
-          )}
-        </div>
-      </div>
+      <SessionStatusPanel
+        state={state}
+        phase={phase}
+        secondsLeft={secondsLeft}
+        prepSecondsLeft={prepSecondsLeft}
+        showOcr={scenario.sectionKey === "A"}
+        ocrStatus={ocrStatus}
+      />
 
       <audio ref={remoteAudioRef} autoPlay playsInline />
 
@@ -633,246 +593,21 @@ export function RealtimeExamRunner(props: { scenario: Scenario; imageUrl: string
         <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</div>
       ) : null}
 
-      <div className="flex flex-wrap gap-2">
-        <button
-          className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-          onClick={start}
-          disabled={state !== "idle" && state !== "stopped" && state !== "error"}
-        >
-          Démarrer
-        </button>
-        <button
-          className="rounded-lg border px-4 py-2 text-sm font-medium disabled:opacity-50"
-          onClick={stop}
-          disabled={state !== "connected"}
-        >
-          Arrêter
-        </button>
-        <button
-          className="rounded-lg border px-4 py-2 text-sm font-medium disabled:opacity-50"
-          onClick={evaluateNow}
-          disabled={isEvaluating || (state !== "stopped" && state !== "error")}
-        >
-          {isEvaluating ? "Évaluation..." : "Évaluer"}
-        </button>
-      </div>
+      <SessionControls
+        onStart={start}
+        onStop={stop}
+        onEvaluate={evaluateNow}
+        canStart={state === "idle" || state === "stopped" || state === "error"}
+        canStop={state === "connected"}
+        canEvaluate={!isEvaluating && (state === "stopped" || state === "error")}
+        isEvaluating={isEvaluating}
+      />
 
-      <details
-        className="rounded-lg border bg-white"
-        open={isTranscriptOpen}
-        onToggle={(e) => setIsTranscriptOpen((e.target as HTMLDetailsElement).open)}
-      >
-        <summary className="cursor-pointer select-none px-3 py-2 text-sm font-medium">
-          Transcript{" "}
-          <span className="text-xs font-normal text-zinc-500">
-            ({transcript.length ? `${transcript.length} lignes` : "vide"})
-          </span>
-        </summary>
-        <div className="min-h-0 max-h-80 overflow-auto border-t p-3">
-          {transcript.length === 0 ? (
-            <div className="text-sm text-zinc-500">
-              Cliquez <span className="font-medium">Démarrer</span>, autorisez le micro, puis parlez normalement.
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {transcript.map((line) => (
-                <div key={line.id} className="text-sm">
-                  <div className="text-xs font-medium text-zinc-500">
-                    {line.role === "assistant" ? "Examinateur" : line.role === "user" ? "Candidat" : "Système"}
-                  </div>
-                  <div className="whitespace-pre-wrap text-zinc-900">{line.text}</div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </details>
+      <TranscriptPanel transcript={transcript} open={isTranscriptOpen} onToggleOpen={setIsTranscriptOpen} />
 
       {evaluation ? <EvaluationPanel evaluation={evaluation} /> : null}
     </div>
   );
-}
-
-function EvaluationPanel(props: { evaluation: any }) {
-  const result = props.evaluation?.result;
-
-  if (!result) {
-    return (
-      <div className="rounded-lg border bg-white p-3">
-        <div className="text-sm font-medium">Évaluation</div>
-        <pre className="mt-2 max-h-80 overflow-auto rounded bg-zinc-50 p-3 text-xs">
-          {JSON.stringify(props.evaluation, null, 2)}
-        </pre>
-      </div>
-    );
-  }
-
-  if (result.raw) {
-    return (
-      <div className="rounded-lg border bg-white p-3">
-        <div className="text-sm font-medium">Évaluation</div>
-        <div className="mt-2 rounded bg-zinc-50 p-3 text-xs whitespace-pre-wrap">{String(result.raw)}</div>
-      </div>
-    );
-  }
-
-  const criteria = normalizeCriteria(result.criteria);
-  const strengths = normalizeStringList(result.strengths);
-  const topImprovements = normalizeStringList(result.top_improvements);
-  const upgraded = normalizeUpgraded(result.upgraded_sentences);
-
-  return (
-    <div className="rounded-lg border bg-white p-3">
-      <div className="flex items-center justify-between gap-3">
-        <div className="text-sm font-medium">Évaluation</div>
-        <div className="text-xs text-zinc-500">Modèle: {props.evaluation?.model ?? "?"}</div>
-      </div>
-
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        <div className="rounded-lg border bg-zinc-50 p-3">
-          <div className="text-xs font-medium text-zinc-500">Estimation globale</div>
-          <div className="mt-1 text-lg font-semibold">{String(result.overall_band_estimate ?? "—")}</div>
-          <div className="mt-2 text-sm text-zinc-800">{result.overall_comment ?? ""}</div>
-        </div>
-
-        <div className="rounded-lg border bg-zinc-50 p-3">
-          <div className="text-xs font-medium text-zinc-500">Top améliorations</div>
-          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-zinc-800">
-            {topImprovements.length ? topImprovements.map((x: string) => <li key={x}>{x}</li>) : <li>—</li>}
-          </ul>
-        </div>
-      </div>
-
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        <div className="rounded-lg border bg-white p-3">
-          <div className="text-xs font-medium text-zinc-500">Forces</div>
-          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-zinc-800">
-            {strengths.length ? strengths.map((x: string) => <li key={x}>{x}</li>) : <li>—</li>}
-          </ul>
-        </div>
-
-        <div className="rounded-lg border bg-white p-3">
-          <div className="text-xs font-medium text-zinc-500">Critères</div>
-          <div className="mt-2 space-y-2">
-            {criteria.length ? (
-              criteria.map((c: any) => (
-                <div key={c.name} className="rounded border bg-zinc-50 p-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="text-sm font-medium">{c.name}</div>
-                    <div className="text-sm font-semibold tabular-nums">{c.score_0_10}/10</div>
-                  </div>
-                  {c.comment ? <div className="mt-1 text-sm text-zinc-800">{c.comment}</div> : null}
-                  {Array.isArray(c.improvements) && c.improvements.length ? (
-                    <ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm text-zinc-700">
-                      {c.improvements.map((x: string) => (
-                        <li key={x}>{x}</li>
-                      ))}
-                    </ul>
-                  ) : null}
-                </div>
-              ))
-            ) : (
-              <div className="text-sm text-zinc-600">—</div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-3 rounded-lg border bg-white p-3">
-        <div className="text-xs font-medium text-zinc-500">Phrases améliorées</div>
-        <div className="mt-2 space-y-2">
-          {upgraded.length ? (
-            upgraded.map((u: any, idx: number) => (
-              <div key={idx} className="rounded border bg-zinc-50 p-2 text-sm">
-                {u.weak ? (
-                  <>
-                    <div className="text-zinc-500">Avant</div>
-                    <div className="text-zinc-900">{u.weak}</div>
-                    <div className="mt-2 text-zinc-500">Mieux</div>
-                  </>
-                ) : (
-                  <div className="text-zinc-500">Suggestion</div>
-                )}
-                <div className="text-zinc-900">{u.better ?? ""}</div>
-                {u.why ? <div className="mt-2 text-zinc-700">Pourquoi: {u.why}</div> : null}
-              </div>
-            ))
-          ) : (
-            <div className="text-sm text-zinc-600">—</div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function normalizeStringList(val: unknown): string[] {
-  if (Array.isArray(val)) {
-    return val.filter((x) => typeof x === "string").map((x) => x.trim()).filter(Boolean);
-  }
-  if (typeof val === "string") {
-    const s = val.trim();
-    if (!s) return [];
-    // If the model returned a paragraph, keep it as one bullet.
-    return [s];
-  }
-  return [];
-}
-
-function normalizeCriteria(val: unknown): Array<{ name: string; score_0_10: number; comment?: string; improvements?: string[] }> {
-  if (Array.isArray(val)) {
-    return val
-      .filter((x) => x && typeof x === "object" && typeof (x as any).name === "string")
-      .map((x: any) => ({
-        name: x.name,
-        score_0_10: Number.isFinite(x.score_0_10) ? x.score_0_10 : Number.isFinite(x.score) ? x.score : 0,
-        comment: typeof x.comment === "string" ? x.comment : undefined,
-        improvements: Array.isArray(x.improvements) ? x.improvements.filter((i: any) => typeof i === "string") : undefined,
-      }));
-  }
-
-  // Support object form: { task_fulfillment: 7, ... }
-  if (val && typeof val === "object") {
-    const entries = Object.entries(val as Record<string, unknown>);
-    return entries
-      .filter(([, v]) => typeof v === "number" && Number.isFinite(v))
-      .map(([k, v]) => ({
-        name: humanizeCriterionKey(k),
-        score_0_10: v as number,
-      }));
-  }
-
-  return [];
-}
-
-function humanizeCriterionKey(k: string) {
-  const map: Record<string, string> = {
-    task_fulfillment: "Task fulfillment / pertinence",
-    coherence_organization: "Coherence & organization",
-    lexical_range_appropriateness: "Lexical range & appropriateness",
-    grammar_control: "Grammar control",
-    fluency_pronunciation: "Fluency & pronunciation",
-    interaction: "Interaction",
-  };
-  return map[k] ?? k.replace(/_/g, " ");
-}
-
-function normalizeUpgraded(val: unknown): Array<{ weak?: string; better: string; why?: string }> {
-  if (Array.isArray(val)) {
-    // Already structured objects?
-    const objs = val.filter((x) => x && typeof x === "object" && typeof (x as any).better === "string");
-    if (objs.length) {
-      return objs.map((u: any) => ({
-        weak: typeof u.weak === "string" ? u.weak : undefined,
-        better: u.better,
-        why: typeof u.why === "string" ? u.why : undefined,
-      }));
-    }
-    // Otherwise it's probably an array of strings (suggested sentences)
-    const strs = val.filter((x) => typeof x === "string").map((s) => s.trim()).filter(Boolean);
-    return strs.map((s) => ({ better: s }));
-  }
-  return [];
 }
 
 
