@@ -105,6 +105,65 @@ export async function POST(req: Request) {
 
   const model = process.env.OPENAI_EVAL_MODEL ?? "gpt-4o-mini";
 
+  // Structured Outputs schema (no extra deps).
+  // This makes the evaluator return a consistent shape so the UI can reliably render tabs like "Phrases".
+  const evalJsonSchema = {
+    name: "tef_evaluation_result",
+    strict: true,
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      required: [
+        "overall_band_estimate",
+        "overall_comment",
+        "criteria",
+        "strengths",
+        "top_improvements",
+        "upgraded_sentences",
+        "cecr_level",
+        "clb_equivalence",
+        "approximate_tef_band",
+      ],
+      properties: {
+        overall_band_estimate: { type: "string" },
+        overall_comment: { type: "string" },
+        criteria: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["name", "score_0_10", "comment", "improvements"],
+            properties: {
+              name: { type: "string" },
+              score_0_10: { type: "integer", minimum: 0, maximum: 10 },
+              comment: { type: "string" },
+              improvements: { type: "array", items: { type: "string" } },
+            },
+          },
+        },
+        strengths: { type: "array", items: { type: "string" } },
+        top_improvements: { type: "array", items: { type: "string" } },
+        upgraded_sentences: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["weak", "better", "why"],
+            properties: {
+              weak: { type: "string" },
+              better: { type: "string" },
+              why: { type: "string" },
+            },
+          },
+        },
+        cecr_level: { type: "string" },
+        clb_equivalence: { type: "string" },
+        approximate_tef_band: { type: "string" },
+        one_improvement_tip: { type: "string" },
+      },
+    },
+  } as const;
+
   const messages = [
     { role: "system" as const, content: buildRubricSystemPrompt(scenario.sectionKey) },
     {
@@ -138,7 +197,7 @@ export async function POST(req: Request) {
       model,
       messages,
       temperature: 0.3,
-      response_format: { type: "json_object" },
+      response_format: { type: "json_schema", json_schema: evalJsonSchema },
     }),
   });
 

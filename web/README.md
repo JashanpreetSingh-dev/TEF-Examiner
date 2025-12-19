@@ -24,6 +24,22 @@ OPENAI_REALTIME_VOICE=alloy
 OPENAI_EVAL_MODEL=gpt-4o-mini
 ```
 
+### Optional (Realtime cost controls)
+
+These are **client-side** (`NEXT_PUBLIC_*`) because Realtime configuration happens in the browser:
+
+```bash
+# Show a small debug readout (Realtime events / responses). 1 = on
+NEXT_PUBLIC_SHOW_TOKEN_DEBUG=0
+
+# Hard caps for any responses we explicitly create
+NEXT_PUBLIC_EXAMINER_MAX_OUTPUT_TOKENS=140
+NEXT_PUBLIC_EO1_EXAMINER_MAX_OUTPUT_TOKENS=100
+NEXT_PUBLIC_EO2_EXAMINER_MAX_OUTPUT_TOKENS=140
+```
+
+Note: OpenAI Realtime currently requires `modalities: [\"audio\",\"text\"]` for audio output. This app runs in an **audio-first** UX (it does not display a live transcript), and uses `max_output_tokens` caps on the explicit `response.create` calls it sends (start/warnings/timeout).
+
 ## Getting Started
 
 First, run the development server:

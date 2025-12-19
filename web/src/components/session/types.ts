@@ -1,6 +1,7 @@
 export type ConnState =
   | "idle"
   | "requesting_mic"
+  | "prepping"
   | "fetching_token"
   | "connecting"
   | "connected"

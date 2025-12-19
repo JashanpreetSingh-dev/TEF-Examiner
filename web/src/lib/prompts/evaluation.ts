@@ -31,6 +31,13 @@ export function buildRubricSystemPrompt(sectionKey: "A" | "B") {
     "Additional required keys (CECR/CLB): cecr_level, clb_equivalence, approximate_tef_band.",
     "Optional: one_improvement_tip.",
     "",
+    "IMPORTANT (UI requirement): upgraded_sentences must be an array of 3–5 objects, each with EXACT keys:",
+    "- weak: a short quote from the candidate (French) that can be improved",
+    "- better: your improved version (French), natural and TEF-appropriate",
+    "- why: 1 short sentence explaining the improvement (French or English OK)",
+    "If the transcript is too short to extract 3 examples, return as many as possible (>=1), otherwise [] if empty transcript.",
+    "Do not rename keys. Do not nest objects. Do not return strings for upgraded_sentences.",
+    "",
     "For EO1 (Section A): account for whether the candidate asked ~10 relevant questions (you may be given an estimated count).",
   ].join("\n");
 }

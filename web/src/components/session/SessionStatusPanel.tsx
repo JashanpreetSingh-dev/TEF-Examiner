@@ -12,8 +12,14 @@ export function SessionStatusPanel(props: {
   endedReason?: "user_stop" | "timeout";
   ocrStatus?: "idle" | "loading" | "ready" | "error";
   showOcr?: boolean;
+  debug?: {
+    dcEvents: number;
+    responsesCreated: number;
+    responsesDone: number;
+    lastUsage?: unknown;
+  };
 }) {
-  const { mode = "live", state, phase, secondsLeft, prepSecondsLeft, endedAtMs, endedReason, showOcr, ocrStatus } = props;
+  const { mode = "live", state, phase, secondsLeft, prepSecondsLeft, endedAtMs, endedReason, showOcr, ocrStatus, debug } = props;
 
   const endedLabel =
     endedReason === "timeout" ? "Temps écoulé" : endedReason === "user_stop" ? "Arrêté" : undefined;
@@ -23,6 +29,8 @@ export function SessionStatusPanel(props: {
       ? "border-emerald-500/30 bg-emerald-500/5"
       : state === "error"
         ? "border-red-500/30 bg-red-500/5"
+        : state === "prepping"
+          ? "border-amber-500/30 bg-amber-500/5"
         : state === "requesting_mic"
           ? "border-amber-500/30 bg-amber-500/5"
           : state === "fetching_token" || state === "connecting"
@@ -58,6 +66,12 @@ export function SessionStatusPanel(props: {
             </Badge>
           ) : null}
         </div>
+
+        {debug ? (
+          <div className="pt-1 text-xs text-muted-foreground">
+            RT: evt {debug.dcEvents} · create {debug.responsesCreated} · done {debug.responsesDone}
+          </div>
+        ) : null}
       </div>
 
       <div className="w-fit rounded-lg border bg-card px-3 py-1.5 text-sm font-medium text-foreground tabular-nums sm:self-auto">

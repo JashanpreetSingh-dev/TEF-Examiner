@@ -256,14 +256,53 @@ function humanizeCriterionKey(k: string) {
 
 function normalizeUpgraded(val: unknown): UpgradedSentence[] {
   if (Array.isArray(val)) {
-    const objs = val.filter((x): x is Record<string, unknown> => isRecord(x) && typeof x.better === "string");
-    if (objs.length) {
-      return objs.map((u) => ({
-        weak: typeof u.weak === "string" ? u.weak : undefined,
-        better: String(u.better),
-        why: typeof u.why === "string" ? u.why : undefined,
-      }));
-    }
+    const objs = val.filter((x): x is Record<string, unknown> => isRecord(x));
+    const normalizedObjs = objs
+      .map((u) => {
+        const better =
+          typeof u.better === "string"
+            ? u.better
+            : typeof u.improved === "string"
+              ? u.improved
+              : typeof u.after === "string"
+                ? u.after
+                : typeof u.rewrite === "string"
+                  ? u.rewrite
+                  : typeof u.suggestion === "string"
+                    ? u.suggestion
+                    : "";
+        if (!better.trim()) return null;
+
+        const weak =
+          typeof u.weak === "string"
+            ? u.weak
+            : typeof u.before === "string"
+              ? u.before
+              : typeof u.original === "string"
+                ? u.original
+                : undefined;
+
+        const why =
+          typeof u.why === "string"
+            ? u.why
+            : typeof u.reason === "string"
+              ? u.reason
+              : typeof u.explanation === "string"
+                ? u.explanation
+                : undefined;
+
+        const out: UpgradedSentence = {
+          better: better.trim(),
+          ...(typeof weak === "string" && weak.trim() ? { weak: weak.trim() } : {}),
+          ...(typeof why === "string" && why.trim() ? { why: why.trim() } : {}),
+        };
+        return out;
+      })
+      .filter((x): x is UpgradedSentence => x !== null);
+
+    if (normalizedObjs.length) return normalizedObjs;
+
+    // Backward-compatible: sometimes models return an array of strings.
     const strs = val.filter((x) => typeof x === "string").map((s) => s.trim()).filter(Boolean);
     return strs.map((s) => ({ better: s }));
   }
