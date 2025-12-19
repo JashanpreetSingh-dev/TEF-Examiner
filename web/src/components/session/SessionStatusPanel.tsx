@@ -1,3 +1,4 @@
+import { Badge } from "@/components/ui/badge";
 import { cn, formatTimeMMSS } from "@/lib/utils";
 import type { ConnState, Phase } from "./types";
 
@@ -15,23 +16,20 @@ export function SessionStatusPanel(props: {
     <div className="flex items-center justify-between gap-3">
       <div className="space-y-0.5">
         <div className="text-sm font-medium">Session</div>
-        <div className="text-xs text-zinc-600">
-          État:{" "}
-          <span className={cn(state === "connected" ? "text-emerald-700" : state === "error" ? "text-red-700" : "")}>
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          <Badge variant={state === "error" ? "destructive" : state === "connected" ? "secondary" : "outline"}>
             {state}
-          </span>
+          </Badge>
+          <Badge variant="outline">{phase}</Badge>
+          {showOcr ? (
+            <Badge
+              variant={ocrStatus === "error" ? "destructive" : ocrStatus === "ready" ? "secondary" : "outline"}
+              className={cn(ocrStatus === "loading" ? "animate-pulse" : "")}
+            >
+              OCR: {ocrStatus ?? "idle"}
+            </Badge>
+          ) : null}
         </div>
-        <div className="text-xs text-zinc-600">
-          Phase: <span className="font-medium">{phase}</span>
-        </div>
-        {showOcr ? (
-          <div className="text-xs text-zinc-600">
-            OCR:{" "}
-            <span className={cn(ocrStatus === "ready" ? "text-emerald-700" : ocrStatus === "error" ? "text-red-700" : "")}>
-              {ocrStatus ?? "idle"}
-            </span>
-          </div>
-        ) : null}
       </div>
 
       <div className="rounded-lg border bg-zinc-50 px-3 py-1.5 text-sm font-medium tabular-nums">

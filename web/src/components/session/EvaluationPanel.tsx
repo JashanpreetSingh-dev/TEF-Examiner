@@ -1,4 +1,8 @@
 import type { ReactNode } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export function EvaluationPanel(props: { evaluation: any }) {
   const result = props.evaluation?.result;
@@ -25,97 +29,106 @@ export function EvaluationPanel(props: { evaluation: any }) {
   const upgraded = normalizeUpgraded(result.upgraded_sentences);
 
   return (
-    <Panel
-      title="Évaluation"
-      right={<div className="text-xs text-zinc-500">Modèle: {props.evaluation?.model ?? "?"}</div>}
-    >
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="rounded-lg border bg-zinc-50 p-3">
-          <div className="text-xs font-medium text-zinc-500">Estimation globale</div>
-          <div className="mt-1 text-lg font-semibold">{String(result.overall_band_estimate ?? "—")}</div>
-          <div className="mt-2 text-sm text-zinc-800">{result.overall_comment ?? ""}</div>
+    <Card>
+      <CardHeader className="space-y-2">
+        <div className="flex items-center justify-between gap-3">
+          <CardTitle>Évaluation</CardTitle>
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary">{props.evaluation?.model ?? "?"}</Badge>
+            <Badge variant="outline">{String(result.overall_band_estimate ?? "—")}</Badge>
+          </div>
         </div>
+        {result.overall_comment ? <div className="text-sm text-muted-foreground">{result.overall_comment}</div> : null}
+      </CardHeader>
+      <CardContent>
+        <Tabs defaultValue="summary">
+          <TabsList className="w-full justify-start">
+            <TabsTrigger value="summary">Résumé</TabsTrigger>
+            <TabsTrigger value="criteria">Critères</TabsTrigger>
+            <TabsTrigger value="sentences">Phrases</TabsTrigger>
+          </TabsList>
 
-        <div className="rounded-lg border bg-zinc-50 p-3">
-          <div className="text-xs font-medium text-zinc-500">Top améliorations</div>
-          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-zinc-800">
-            {topImprovements.length ? topImprovements.map((x: string) => <li key={x}>{x}</li>) : <li>—</li>}
-          </ul>
-        </div>
-      </div>
+          <TabsContent value="summary" className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-lg border bg-muted/40 p-3">
+                <div className="text-xs font-medium text-muted-foreground">Forces</div>
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
+                  {strengths.length ? strengths.map((x: string) => <li key={x}>{x}</li>) : <li>—</li>}
+                </ul>
+              </div>
+              <div className="rounded-lg border bg-muted/40 p-3">
+                <div className="text-xs font-medium text-muted-foreground">Top améliorations</div>
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
+                  {topImprovements.length ? topImprovements.map((x: string) => <li key={x}>{x}</li>) : <li>—</li>}
+                </ul>
+              </div>
+            </div>
+          </TabsContent>
 
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        <div className="rounded-lg border bg-white p-3">
-          <div className="text-xs font-medium text-zinc-500">Forces</div>
-          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-zinc-800">
-            {strengths.length ? strengths.map((x: string) => <li key={x}>{x}</li>) : <li>—</li>}
-          </ul>
-        </div>
-
-        <div className="rounded-lg border bg-white p-3">
-          <div className="text-xs font-medium text-zinc-500">Critères</div>
-          <div className="mt-2 space-y-2">
+          <TabsContent value="criteria" className="space-y-3">
             {criteria.length ? (
               criteria.map((c: any) => (
-                <div key={c.name} className="rounded border bg-zinc-50 p-2">
+                <div key={c.name} className="rounded-lg border p-3">
                   <div className="flex items-center justify-between gap-2">
                     <div className="text-sm font-medium">{c.name}</div>
-                    <div className="text-sm font-semibold tabular-nums">{c.score_0_10}/10</div>
+                    <Badge variant="secondary">{c.score_0_10}/10</Badge>
                   </div>
-                  {c.comment ? <div className="mt-1 text-sm text-zinc-800">{c.comment}</div> : null}
+                  {c.comment ? <div className="mt-2 text-sm text-muted-foreground">{c.comment}</div> : null}
                   {Array.isArray(c.improvements) && c.improvements.length ? (
-                    <ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm text-zinc-700">
-                      {c.improvements.map((x: string) => (
-                        <li key={x}>{x}</li>
-                      ))}
-                    </ul>
+                    <>
+                      <Separator className="my-3" />
+                      <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                        {c.improvements.map((x: string) => (
+                          <li key={x}>{x}</li>
+                        ))}
+                      </ul>
+                    </>
                   ) : null}
                 </div>
               ))
             ) : (
-              <div className="text-sm text-zinc-600">—</div>
+              <div className="text-sm text-muted-foreground">—</div>
             )}
-          </div>
-        </div>
-      </div>
+          </TabsContent>
 
-      <div className="mt-3 rounded-lg border bg-white p-3">
-        <div className="text-xs font-medium text-zinc-500">Phrases améliorées</div>
-        <div className="mt-2 space-y-2">
-          {upgraded.length ? (
-            upgraded.map((u: any, idx: number) => (
-              <div key={idx} className="rounded border bg-zinc-50 p-2 text-sm">
-                {u.weak ? (
-                  <>
-                    <div className="text-zinc-500">Avant</div>
-                    <div className="text-zinc-900">{u.weak}</div>
-                    <div className="mt-2 text-zinc-500">Mieux</div>
-                  </>
-                ) : (
-                  <div className="text-zinc-500">Suggestion</div>
-                )}
-                <div className="text-zinc-900">{u.better ?? ""}</div>
-                {u.why ? <div className="mt-2 text-zinc-700">Pourquoi: {u.why}</div> : null}
-              </div>
-            ))
-          ) : (
-            <div className="text-sm text-zinc-600">—</div>
-          )}
-        </div>
-      </div>
-    </Panel>
+          <TabsContent value="sentences" className="space-y-2">
+            {upgraded.length ? (
+              upgraded.map((u: any, idx: number) => (
+                <div key={idx} className="rounded-lg border bg-muted/30 p-3 text-sm">
+                  {u.weak ? (
+                    <>
+                      <div className="text-xs font-medium text-muted-foreground">Avant</div>
+                      <div className="mt-1">{u.weak}</div>
+                      <div className="mt-3 text-xs font-medium text-muted-foreground">Mieux</div>
+                    </>
+                  ) : (
+                    <div className="text-xs font-medium text-muted-foreground">Suggestion</div>
+                  )}
+                  <div className="mt-1 font-medium">{u.better ?? ""}</div>
+                  {u.why ? <div className="mt-2 text-xs text-muted-foreground">Pourquoi: {u.why}</div> : null}
+                </div>
+              ))
+            ) : (
+              <div className="text-sm text-muted-foreground">—</div>
+            )}
+          </TabsContent>
+        </Tabs>
+      </CardContent>
+    </Card>
   );
 }
 
 function Panel(props: { title: string; right?: ReactNode; children: ReactNode }) {
   return (
-    <div className="rounded-lg border bg-white p-3">
-      <div className="flex items-center justify-between gap-3">
-        <div className="text-sm font-medium">{props.title}</div>
-        {props.right}
-      </div>
-      <div className="mt-2">{props.children}</div>
-    </div>
+    <Card>
+      <CardHeader className="space-y-0">
+        <div className="flex items-center justify-between gap-3">
+          <CardTitle>{props.title}</CardTitle>
+          {props.right}
+        </div>
+      </CardHeader>
+      <CardContent>{props.children}</CardContent>
+    </Card>
   );
 }
 
