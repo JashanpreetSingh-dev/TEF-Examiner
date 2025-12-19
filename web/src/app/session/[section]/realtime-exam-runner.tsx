@@ -10,58 +10,10 @@ import { SessionStatusPanel } from "@/components/session/SessionStatusPanel";
 import { TranscriptPanel } from "@/components/session/TranscriptPanel";
 import type { ConnState, Phase, TranscriptLine } from "@/components/session/types";
 import { examinerMaxOutputTokens, makeBrevityInstruction, makeExamInstructions } from "@/lib/prompts/examiner";
-
-
-
-function randomId() {
-  return Math.random().toString(16).slice(2) + Date.now().toString(16);
-}
-
-type RunnerMode = "live" | "results";
-type StopReason = "user_stop" | "timeout";
-type EvaluationStatus = "idle" | "loading" | "done" | "error";
-
-type RealtimeDebugStats = {
-  dcEvents: number;
-  responsesCreated: number;
-  responsesDone: number;
-  lastUsage?: unknown;
-};
-
-function isRecord(val: unknown): val is Record<string, unknown> {
-  return Boolean(val) && typeof val === "object";
-}
-
-function isIgnorableRealtimeError(evt: unknown): boolean {
-  if (!isRecord(evt)) return false;
-  const err = isRecord(evt.error) ? evt.error : null;
-  const code = err && typeof err.code === "string" ? err.code : undefined;
-  if (code === "conversation_already_has_active_response") return true;
-
-  const msg = String(err && "message" in err ? (err as Record<string, unknown>).message ?? "" : "");
-  if (msg.includes("Conversation already has an active response in progress")) return true;
-
-  return false;
-}
-
-type SessionSummary = {
-  endedAtMs: number;
-  endedReason: StopReason;
-  finalTranscript: TranscriptLine[];
-  finalTranscriptForEval: Array<{ role: "user" | "assistant"; text: string }>;
-  evaluation: unknown | null;
-  evaluationStatus: EvaluationStatus;
-  evaluationError: string | null;
-};
-
-function sleep(ms: number) {
-  return new Promise<void>((r) => setTimeout(r, ms));
-}
-
-
-function toExaminerLines(snapshot: TranscriptLine[]) {
-  return snapshot.filter((t): t is TranscriptLine & { role: "assistant" } => t.role === "assistant");
-}
+import type { RunnerMode, SessionSummary, RealtimeDebugStats, StopReason } from "./realtime-exam-runner.types";
+import { randomId, sleep, isRecord, isIgnorableRealtimeError, toExaminerLines } from "./realtime-exam-runner.utils";
+import { startRecording as startRecordingHelper, stopRecording as stopRecordingHelper, transcribeCandidateAudio } from "./realtime-exam-runner.recording";
+import { stopTimer as stopTimerHelper, stopPrepTimer as stopPrepTimerHelper, startTimer as startTimerHelper, startPrepTimer as startPrepTimerHelper } from "./realtime-exam-runner.timers";
 
 export function RealtimeExamRunner(props: { scenario: Scenario; imageUrl: string }) {
   const { scenario } = props;
@@ -121,55 +73,55 @@ export function RealtimeExamRunner(props: { scenario: Scenario; imageUrl: string
     }
   }, []);
 
+  const recordingRefs = useMemo(
+    () => ({
+      recorder: recorderRef,
+      chunks: recordedChunksRef,
+      mimeType: recordingMimeRef,
+    }),
+    [],
+  );
 
-  const stopTimer = useCallback(() => {
-    if (timerRef.current) {
-      window.clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-  }, []);
+  const timerRefs = useMemo(
+    () => ({
+      timer: timerRef,
+      prepTimer: prepTimerRef,
+      timeoutHandled: timeoutHandledRef,
+      warn60Sent: warn60SentRef,
+      warn10Sent: warn10SentRef,
+    }),
+    [],
+  );
+
+  const timerSetters = useMemo(
+    () => ({
+      setSecondsLeft,
+      setPrepSecondsLeft,
+    }),
+    [],
+  );
 
   const stopPrepTimer = useCallback(() => {
-    if (prepTimerRef.current) {
-      window.clearInterval(prepTimerRef.current);
-      prepTimerRef.current = null;
-    }
-  }, []);
+    stopPrepTimerHelper(timerRefs);
+  }, [timerRefs]);
 
   const startTimer = useCallback(() => {
-    stopTimer();
-    setSecondsLeft(scenario.time_limit_sec);
-    timeoutHandledRef.current = false;
-    warn60SentRef.current = false;
-    warn10SentRef.current = false;
-    timerRef.current = window.setInterval(() => {
-      setSecondsLeft((s) => {
-        if (s <= 1) return 0;
-        return s - 1;
-      });
-    }, 1000);
-  }, [scenario.time_limit_sec, stopTimer]);
+    startTimerHelper(scenario.time_limit_sec, timerRefs, timerSetters, stopTimerHelper);
+  }, [scenario.time_limit_sec, timerRefs, timerSetters]);
 
   const startPrepTimer = useCallback(() => {
-    stopPrepTimer();
-    setPrepSecondsLeft(60);
-    prepTimerRef.current = window.setInterval(() => {
-      setPrepSecondsLeft((s) => {
-        if (s <= 1) return 0;
-        return s - 1;
-      });
-    }, 1000);
-  }, [stopPrepTimer]);
+    startPrepTimerHelper(timerRefs, timerSetters, stopPrepTimerHelper);
+  }, [timerRefs, timerSetters]);
 
   const teardownRealtime = useCallback(() => {
-    stopTimer();
-    stopPrepTimer();
+    stopTimerHelper(timerRefs);
+    stopPrepTimerHelper(timerRefs);
     setPhase("none");
     phaseRef.current = "none";
     examStartedRef.current = false;
     awaitingResponseRef.current = false;
-    warn60SentRef.current = false;
-    warn10SentRef.current = false;
+    timerRefs.warn60Sent.current = false;
+    timerRefs.warn10Sent.current = false;
 
     try {
       dcRef.current?.close();
@@ -200,82 +152,18 @@ export function RealtimeExamRunner(props: { scenario: Scenario; imageUrl: string
         } catch {}
       }
     }
-  }, [stopPrepTimer, stopTimer]);
+  }, [timerRefs]);
 
-  const startRecording = useCallback((stream: MediaStream) => {
-    try {
-      if (recorderRef.current) return;
-      recordedChunksRef.current = [];
-
-      const preferredTypes = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus"];
-      const mimeType = preferredTypes.find((t) => MediaRecorder.isTypeSupported(t)) ?? "";
-      recordingMimeRef.current = mimeType;
-
-      const rec = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
-      recorderRef.current = rec;
-
-      rec.ondataavailable = (e) => {
-        if (e.data && e.data.size > 0) recordedChunksRef.current.push(e.data);
-      };
-
-      // Small timeslice keeps memory stable for long sessions.
-      rec.start(1000);
-    } catch {
-      recorderRef.current = null;
-      recordedChunksRef.current = [];
-      recordingMimeRef.current = "";
-    }
-  }, []);
+  const startRecording = useCallback(
+    (stream: MediaStream) => {
+      startRecordingHelper(stream, recordingRefs);
+    },
+    [recordingRefs],
+  );
 
   const stopRecording = useCallback(async (): Promise<Blob | null> => {
-    const rec = recorderRef.current;
-    if (!rec) return null;
-
-    if (rec.state === "inactive") {
-      recorderRef.current = null;
-      const chunks = recordedChunksRef.current;
-      recordedChunksRef.current = [];
-      const type = recordingMimeRef.current || chunks[0]?.type || "audio/webm";
-      return chunks.length ? new Blob(chunks, { type }) : null;
-    }
-
-    const done = new Promise<void>((resolve) => {
-      const prev = rec.onstop;
-      rec.onstop = (ev: Event) => {
-        try {
-          if (typeof prev === "function") prev.call(rec, ev);
-        } finally {
-          resolve();
-        }
-      };
-    });
-
-    try {
-      rec.stop();
-    } catch {}
-
-    await done;
-
-    recorderRef.current = null;
-    const chunks = recordedChunksRef.current;
-    recordedChunksRef.current = [];
-    const type = recordingMimeRef.current || chunks[0]?.type || "audio/webm";
-    return chunks.length ? new Blob(chunks, { type }) : null;
-  }, []);
-
-  const transcribeCandidateAudio = useCallback(async (audio: Blob | null): Promise<string> => {
-    if (!audio) return "";
-    try {
-      const fd = new FormData();
-      fd.set("audio", audio, "candidate.webm");
-      const res = await fetch("/api/transcribe", { method: "POST", body: fd });
-      if (!res.ok) return "";
-      const json = (await res.json().catch(() => null)) as null | { text?: unknown };
-      return typeof json?.text === "string" ? json.text.trim() : "";
-    } catch {
-      return "";
-    }
-  }, []);
+    return stopRecordingHelper(recordingRefs);
+  }, [recordingRefs]);
 
   const sendEvent = useCallback((evt: Record<string, unknown>) => {
     const dc = dcRef.current;
@@ -681,7 +569,7 @@ export function RealtimeExamRunner(props: { scenario: Scenario; imageUrl: string
       finalTranscript,
       finalTranscriptForEval: transcriptForEval,
     });
-  }, [persistAndNavigateToResults, stopRecording, teardownRealtime, transcribeCandidateAudio]);
+  }, [persistAndNavigateToResults, stopRecording, teardownRealtime]);
 
   const handleTimeout = useCallback(async () => {
     if (timeoutHandledRef.current) return;
@@ -735,7 +623,6 @@ export function RealtimeExamRunner(props: { scenario: Scenario; imageUrl: string
     sendEvent,
     stopRecording,
     teardownRealtime,
-    transcribeCandidateAudio,
     scenario.sectionKey,
   ]);
 

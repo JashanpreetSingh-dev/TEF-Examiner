@@ -29,7 +29,6 @@ export function buildRubricSystemPrompt(sectionKey: "A" | "B") {
     "OUTPUT FORMAT (hybrid): keep the existing keys for our UI, AND add CECR/CLB fields.",
     "Required keys (existing): overall_band_estimate, overall_comment, criteria, strengths, top_improvements, upgraded_sentences.",
     "Additional required keys (CECR/CLB): cecr_level, clb_equivalence, approximate_tef_band.",
-    "Optional: one_improvement_tip.",
     "",
     "IMPORTANT (UI requirement): upgraded_sentences must be an array of 3–5 objects, each with EXACT keys:",
     "- weak: a short quote from the candidate (French) that can be improved",

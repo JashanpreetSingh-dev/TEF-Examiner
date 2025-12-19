@@ -159,7 +159,6 @@ export async function POST(req: Request) {
         cecr_level: { type: "string" },
         clb_equivalence: { type: "string" },
         approximate_tef_band: { type: "string" },
-        one_improvement_tip: { type: "string" },
       },
     },
   } as const;
