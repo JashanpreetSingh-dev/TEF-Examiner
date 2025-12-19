@@ -52,8 +52,12 @@ function estimateQuestionCount(candidateText: string): { count: number; method: 
     .trim();
   if (!text) return { count: 0, method: "heuristic" };
 
-  const interrogativeStart = /^\s*(est-ce|est ce|est-ce que|est ce que|qu[' ]|quoi|quel(le)?s?|combien|où|ou|quand|comment|pourquoi|qui)\b/;
-  const interrogativeAny = /\b(est-ce|est ce|est-ce que|est ce que|pouvez[- ]vous|pourriez[- ]vous|avez[- ]vous|est[- ]il|est[- ]ce|y a[- ]t[- ]il|je (voudrais|voulais) savoir)\b/;
+  // Speech transcripts often start with fillers (e.g. "d'accord", "tout d'abord", "en plus").
+  // So we detect interrogatives both at the start AND anywhere in the utterance.
+  const interrogativeStart =
+    /^\s*(est-ce|est ce|est-ce que|est ce que|qu[' ]|quoi|quel(le)?s?|combien|où|ou|quand|comment|pourquoi|qui)\b/;
+  const interrogativeAny =
+    /\b(est-ce|est ce|est-ce que|est ce que|pouvez[- ]vous|pourriez[- ]vous|avez[- ]vous|est[- ]il|y a[- ]t[- ]il|je (voudrais|voulais) (savoir|conna[iî]tre)|quel(le)?s?)\b/;
 
   // Split into rough utterances; speech-to-text often lacks punctuation, so also split on newlines.
   const parts = text
@@ -63,7 +67,19 @@ function estimateQuestionCount(candidateText: string): { count: number; method: 
 
   let count = 0;
   for (const p of parts) {
+    // Count each utterance as max 1 question to avoid wild overcounting,
+    // but don't miss interrogatives that appear after filler words.
     if (interrogativeStart.test(p) || interrogativeAny.test(p)) count += 1;
+  }
+
+  // If user stacks multiple questions in a single utterance (common in EO1),
+  // do a secondary pass that counts interrogative markers inside utterances.
+  // We cap this so it cannot explode on noisy transcripts.
+  if (count < 9) {
+    const multi = text.match(/\b(quel(le)?s?|combien|où|ou|quand|comment|pourquoi|qui|est[- ]il|y a[- ]t[- ]il|est-ce|est ce)\b/g);
+    if (multi && multi.length > count) {
+      count = Math.min(30, Math.max(count, multi.length));
+    }
   }
 
   // Avoid wildly over-counting in long paragraphs: cap to a sane range.
