@@ -17,7 +17,7 @@
       "Équipement ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_1.png",
     "difficulty": "medium"
   },
   {
@@ -38,7 +38,7 @@
       "Tarifs ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_2.png",
     "difficulty": "medium"
   },
   {
@@ -59,7 +59,7 @@
       "Ustensiles ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_3.png",
     "difficulty": "medium"
   },
   {
@@ -80,7 +80,7 @@
       "Connexion ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_4.png",
     "difficulty": "medium"
   },
   {
@@ -101,7 +101,7 @@
       "Pause ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_5.png",
     "difficulty": "medium"
   },
   {
@@ -122,7 +122,7 @@
       "Refus mission ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_6.png",
     "difficulty": "medium"
   },
   {
@@ -143,7 +143,7 @@
       "Permis ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_7.png",
     "difficulty": "medium"
   },
   {
@@ -164,7 +164,7 @@
       "Dons de jouets acceptés ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_8.png",
     "difficulty": "medium"
   },
   {
@@ -185,7 +185,7 @@
       "Réservation ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_9.png",
     "difficulty": "medium"
   },
   {
@@ -206,7 +206,7 @@
       "Dégustation ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_10.png",
     "difficulty": "medium"
   },
   {
@@ -227,7 +227,7 @@
       "Restauration ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_11.png",
     "difficulty": "medium"
   },
   {
@@ -248,7 +248,7 @@
       "Danger ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_12.png",
     "difficulty": "medium"
   },
   {
@@ -269,7 +269,7 @@
       "Organismes caritatifs ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_13.png",
     "difficulty": "medium"
   },
   {
@@ -289,7 +289,7 @@
       "Ateliers ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_14.png",
     "difficulty": "medium"
   },
   {
@@ -310,7 +310,7 @@
       "Parents ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_15.png",
     "difficulty": "medium"
   },
   {
@@ -331,7 +331,7 @@
       "Site internet ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_16.png",
     "difficulty": "medium"
   },
   {
@@ -352,7 +352,7 @@
       "Formation musicale ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_17.png",
     "difficulty": "medium"
   },
   {
@@ -373,7 +373,7 @@
       "Des compétences pour être choisi ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_18.png",
     "difficulty": "medium"
   },
   {
@@ -394,7 +394,7 @@
       "Âge ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_19.png",
     "difficulty": "medium"
   },
   {
@@ -415,7 +415,7 @@
       "Danger ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_20.png",
     "difficulty": "medium"
   },
   {
@@ -436,7 +436,7 @@
       "Stages intensifs ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_21.png",
     "difficulty": "medium"
   },
   {
@@ -457,7 +457,7 @@
       "Rencontrer des artistes ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_22.png",
     "difficulty": "medium"
   },
   {
@@ -478,7 +478,7 @@
       "Réservations ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_23.png",
     "difficulty": "medium"
   },
   {
@@ -499,7 +499,7 @@
       "Dossier ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+      "image": "/section_a_images/section_a_image_24.png",
     "difficulty": "medium"
   },
   {
@@ -520,7 +520,7 @@
       "Assurance ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_25.png",
     "difficulty": "medium"
   },
   {
@@ -541,7 +541,7 @@
       "Danger ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_26.png",
     "difficulty": "medium"
   },
   {
@@ -562,7 +562,7 @@
       "Karaoké ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_27.png",
     "difficulty": "medium"
   },
   {
@@ -583,7 +583,7 @@
       "Comment réserver ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_28.png",
     "difficulty": "medium"
   },
   {
@@ -604,7 +604,7 @@
       "Personnel qualifié ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_29.png",
     "difficulty": "medium"
   },
   {
@@ -625,7 +625,7 @@
       "Visite médicale ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_30.png",
     "difficulty": "medium"
   },
   {
@@ -646,7 +646,7 @@
       "Possibilité de gérer un chat agressif ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_31.png",
     "difficulty": "medium"
   },
   {
@@ -666,7 +666,7 @@
       "Prix ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_32.png",
     "difficulty": "medium"
   },
   {
@@ -687,7 +687,7 @@
       "Annulation ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_33.png",
     "difficulty": "medium"
   },
   {
@@ -708,7 +708,7 @@
       "Autres produits ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_34.png",
     "difficulty": "medium"
   },
   {
@@ -729,7 +729,7 @@
       "Lunettes pour enfants ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_35.png",
     "difficulty": "medium"
   },
   {
@@ -749,7 +749,7 @@
       "Envoi sécurisé ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_36.png",
     "difficulty": "medium"
   },
   {
@@ -770,7 +770,7 @@
       "Enfants ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_37.png",
     "difficulty": "medium"
   },
   {
@@ -791,7 +791,7 @@
       "Assurances ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_38.png",
     "difficulty": "medium"
   },
   {
@@ -812,7 +812,7 @@
       "Protection si maladie / indigestion ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_39.png",
     "difficulty": "medium"
   },
   {
@@ -833,7 +833,7 @@
       "Cours en groupe ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_40.png",
     "difficulty": "medium"
   },
   {
@@ -854,7 +854,7 @@
       "Réservation ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_41.png",
     "difficulty": "medium"
   },
   {
@@ -875,7 +875,7 @@
       "Réservation ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_42.png",
     "difficulty": "medium"
   },
   {
@@ -896,7 +896,7 @@
       "Déroulement ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_43.png",
     "difficulty": "medium"
   },
   {
@@ -917,7 +917,7 @@
       "Tenue ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_44.png",
     "difficulty": "medium"
   },
   {
@@ -938,7 +938,7 @@
       "Réservation ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_45.png",
     "difficulty": "medium"
   },
   {
@@ -959,7 +959,7 @@
       "Nombre de personnes ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_46.png",
     "difficulty": "medium"
   },
   {
@@ -980,7 +980,7 @@
       "Contrat ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_47.png",
     "difficulty": "medium"
   },
   {
@@ -1001,7 +1001,7 @@
       "Réservation ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_48.png",
     "difficulty": "medium"
   },
   {
@@ -1022,7 +1022,7 @@
       "Compétitions ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_49.png",
     "difficulty": "medium"
   },
   {
@@ -1043,7 +1043,7 @@
       "Quartier ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_50.png",
     "difficulty": "medium"
   },
   {
@@ -1063,7 +1063,7 @@
       "Inscription ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_51.png",
     "difficulty": "medium"
   },
   {
@@ -1084,7 +1084,7 @@
       "Guide ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_52.png",
     "difficulty": "medium"
   },
   {
@@ -1105,7 +1105,7 @@
       "Comédiens ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_53.png",
     "difficulty": "medium"
   },
   {
@@ -1126,7 +1126,7 @@
       "Cours privés-groupe ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_54.png",
     "difficulty": "medium"
   },
   {
@@ -1146,7 +1146,7 @@
       "Autres avantages ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_55.png",
     "difficulty": "medium"
   },
   {
@@ -1167,7 +1167,7 @@
       "Frais de nettoyage ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_56.png",
     "difficulty": "medium"
   },
   {
@@ -1188,7 +1188,7 @@
       "Disponibilités ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_57.png",
     "difficulty": "medium"
   },
   {
@@ -1209,7 +1209,7 @@
       "Danger ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_58.png",
     "difficulty": "medium"
   },
   {
@@ -1230,7 +1230,7 @@
       "Stages intensifs ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_59.png",
     "difficulty": "medium"
   },
   {
@@ -1251,7 +1251,7 @@
       "Réservation ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_60.png",
     "difficulty": "medium"
   },
   {
@@ -1281,7 +1281,7 @@
       "Décoration ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_61.png",
     "difficulty": "medium"
   },
   {
@@ -1302,7 +1302,7 @@
       "Championnat ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_63.png",
     "difficulty": "medium"
   },
   {
@@ -1323,7 +1323,7 @@
       "Groupes ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_64.png",
     "difficulty": "medium"
   },
   {
@@ -1344,7 +1344,7 @@
       "Spectacle ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_65.png",
     "difficulty": "medium"
   },
   {
@@ -1365,7 +1365,7 @@
       "Consignes de sécurité ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_66.png",
     "difficulty": "medium"
   },
   {
@@ -1386,7 +1386,7 @@
       "Danger ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_67.png",
     "difficulty": "medium"
   },
   {
@@ -1407,7 +1407,7 @@
       "Variétés ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_68.png",
     "difficulty": "medium"
   },
   {
@@ -1428,7 +1428,7 @@
       "Sécurité ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_69.png",
     "difficulty": "medium"
   },
   {
@@ -1449,7 +1449,7 @@
       "Privatisation ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_70.png",
     "difficulty": "medium"
   },
   {
@@ -1470,7 +1470,7 @@
       "Hébergement ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_71.png",
     "difficulty": "medium"
   },
   {
@@ -1491,7 +1491,7 @@
       "Nombre de personnes ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_72.png",
     "difficulty": "medium"
   },
   {
@@ -1512,7 +1512,7 @@
       "Réductions ou offres spéciales ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_73.png",
     "difficulty": "medium"
   },
   {
@@ -1533,7 +1533,7 @@
       "Divertissements ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_74.png",
     "difficulty": "medium"
   },
   {
@@ -1554,7 +1554,7 @@
       "Guide ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_75.png",
     "difficulty": "medium"
   },
   {
@@ -1575,7 +1575,7 @@
       "Quantité minimum ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_76.png",
     "difficulty": "medium"
   },
   {
@@ -1596,7 +1596,7 @@
       "Visite du vignoble ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_77.png",
     "difficulty": "medium"
   },
   {
@@ -1617,7 +1617,7 @@
       "Remboursement ?"
     ],
     "time_limit_sec": 300,
-    "image": null,
+    "image": "/section_a_images/section_a_image_78.png",
     "difficulty": "medium"
   }
 ]

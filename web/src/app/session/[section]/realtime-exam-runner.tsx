@@ -5,7 +5,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Scenario } from "@/lib/kb";
 import { cn, formatTimeMMSS } from "@/lib/utils";
 
-type ConnState = "idle" | "requesting_mic" | "fetching_token" | "connecting" | "connected" | "stopping" | "stopped" | "error";
+type ConnState =
+  | "idle"
+  | "requesting_mic"
+  | "fetching_token"
+  | "connecting"
+  | "connected"
+  | "stopping"
+  | "stopped"
+  | "error";
+
+type Phase = "none" | "prebrief" | "prep" | "exam";
 
 type TranscriptLine = {
   id: string;
@@ -13,35 +23,64 @@ type TranscriptLine = {
   text: string;
 };
 
-function makeExamInstructions(scenario: Scenario) {
+function makeExamInstructions(scenario: Scenario, ocr: null | { raw_text: string; facts: Array<{ key: string; value: string }> }) {
   const base = [
     "Tu es un examinateur TEF Canada (Expression Orale).",
     "Tu dois simuler l’épreuve de manière réaliste et dynamique.",
     "Tu parles uniquement en français.",
-    "Objectif: faire parler le candidat, relancer, demander des précisions, reformuler si nécessaire.",
+    "Objectif: simuler une interaction réaliste selon la tâche; rester naturel.",
     "Style: naturel, professionnel, mais pas robotique.",
-    "Ne donne pas les réponses au candidat. Ne corrige pas en continu pendant l’épreuve (garde les corrections pour la fin si demandé).",
+    "IMPORTANT: ne corrige pas le candidat pendant l’épreuve. Pas de conseils pédagogiques, pas d’explications de grammaire. Pas de coaching.",
   ];
 
   if (scenario.sectionKey === "A") {
+    const facts = (ocr?.facts ?? []).map((f) => `- ${f.key}: ${f.value}`).join("\n");
     return [
       ...base,
       "Épreuve EO1: interaction type appel téléphonique.",
-      "Le candidat appelle pour obtenir des informations; tu joues l’interlocuteur (standard, vendeur, organisateur, etc.).",
-      "Pose des questions de clarification, propose des informations progressivement, et encourage le candidat à poser des questions.",
+      "Tu joues l’interlocuteur (standard, vendeur, organisateur, etc.).",
+      "Le candidat pilote l’appel en posant des questions. Tu réponds uniquement à ce qui est demandé.",
+      "Tu ne suggères PAS quelles questions poser. Tu ne listes pas d’informations spontanément.",
+      "Tu peux poser une question de clarification uniquement si la demande est ambiguë ou incompréhensible.",
+      "Réponses: concises, polies, ton téléphone. Donne les détails progressivement, seulement quand on te les demande.",
+      "Priorité d'information: utilise d'abord les informations de l'annonce (OCR) ci-dessous si elles existent.",
+      "Si un détail n'apparaît pas dans l'annonce, invente une information plausible (ex: prix, horaires, modalités) et présente-la comme un fait.",
+      "IMPORTANT: si tu inventes un détail, reste cohérent ensuite (même prix, mêmes horaires, même adresse) pendant tout l'appel.",
       `Consigne: ${scenario.prompt}`,
-      `Liste de questions suggérées (à couvrir si possible): ${scenario.suggested_questions.join(" ; ")}`,
+      "Informations de l'annonce (OCR):",
+      facts || "- (aucune information extraite)",
     ].join("\n");
   }
 
   return [
     ...base,
     "Épreuve EO2: argumentation / persuasion.",
-    "Le candidat doit convaincre un(e) ami(e). Tu joues l’ami(e) sceptique et tu utilises des contre-arguments progressivement.",
-    "Exige des justifications, exemples, et concessions. Relance si c’est trop court.",
+    "Le candidat doit convaincre un(e) ami(e). Tu joues l’ami(e) sceptique.",
+    "Tu utilises des contre-arguments progressivement (pas tous à la fois) et tu demandes des justifications/exemples.",
+    "CONTRAINTE ABSOLUE: tu dois utiliser UNIQUEMENT les contre-arguments ci-dessous (tu peux paraphraser), et tu ne dois PAS inventer de nouvelles objections.",
+    "Choisis le prochain contre-argument en fonction de ce que le candidat vient de dire.",
+    "Ne débute pas par des contre-arguments avant que le candidat ait commencé à parler (le candidat parle en premier).",
     `Consigne: ${scenario.prompt}`,
     `Contre-arguments possibles (à utiliser graduellement): ${scenario.counter_arguments.join(" | ")}`,
   ].join("\n");
+}
+
+function makePrebrief(scenario: Scenario) {
+  if (scenario.sectionKey === "A") {
+    return [
+      "Vous allez faire l’épreuve d’expression orale, section A (EO1).",
+      "Vous allez voir une image et une consigne.",
+      "Je vais vous laisser 60 secondes pour lire et vous préparer. Pendant ce temps, ne parlez pas.",
+      "Ensuite, je commencerai l’appel téléphonique et vous poserez vos questions.",
+    ].join(" ");
+  }
+
+  return [
+    "Vous allez faire l’épreuve d’expression orale, section B (EO2).",
+    "Vous allez voir une image et une consigne.",
+    "Je vais vous laisser 60 secondes pour lire et vous préparer. Pendant ce temps, ne parlez pas.",
+    "Ensuite, vous commencerez à parler en premier pour essayer de me convaincre.",
+  ].join(" ");
 }
 
 function randomId() {
@@ -52,21 +91,32 @@ export function RealtimeExamRunner(props: { scenario: Scenario; imageUrl: string
   const { scenario } = props;
 
   const [state, setState] = useState<ConnState>("idle");
+  const [phase, setPhase] = useState<Phase>("none");
   const [error, setError] = useState<string | null>(null);
   const [transcript, setTranscript] = useState<TranscriptLine[]>([]);
   const [secondsLeft, setSecondsLeft] = useState<number>(scenario.time_limit_sec);
+  const [prepSecondsLeft, setPrepSecondsLeft] = useState<number>(60);
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evaluation, setEvaluation] = useState<any>(null);
+  const [isTranscriptOpen, setIsTranscriptOpen] = useState(false);
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const dcRef = useRef<RTCDataChannel | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const timerRef = useRef<number | null>(null);
+  const prepTimerRef = useRef<number | null>(null);
   const timeoutHandledRef = useRef(false);
   const evaluationTriggeredRef = useRef(false);
+  const phaseRef = useRef<Phase>("none");
+  const examStartedRef = useRef(false);
+  const awaitingResponseRef = useRef(false);
+  const warn60SentRef = useRef(false);
+  const warn10SentRef = useRef(false);
 
-  const instructions = useMemo(() => makeExamInstructions(scenario), [scenario]);
+  const [ocrStatus, setOcrStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [ocrData, setOcrData] = useState<null | { raw_text: string; facts: Array<{ key: string; value: string }> }>(null);
+  const prebrief = useMemo(() => makePrebrief(scenario), [scenario]);
 
   const appendLine = useCallback((line: Omit<TranscriptLine, "id">) => {
     setTranscript((prev) => [...prev, { id: randomId(), ...line }]);
@@ -94,10 +144,19 @@ export function RealtimeExamRunner(props: { scenario: Scenario; imageUrl: string
     }
   }, []);
 
+  const stopPrepTimer = useCallback(() => {
+    if (prepTimerRef.current) {
+      window.clearInterval(prepTimerRef.current);
+      prepTimerRef.current = null;
+    }
+  }, []);
+
   const startTimer = useCallback(() => {
     stopTimer();
     setSecondsLeft(scenario.time_limit_sec);
     timeoutHandledRef.current = false;
+    warn60SentRef.current = false;
+    warn10SentRef.current = false;
     timerRef.current = window.setInterval(() => {
       setSecondsLeft((s) => {
         if (s <= 1) return 0;
@@ -106,8 +165,26 @@ export function RealtimeExamRunner(props: { scenario: Scenario; imageUrl: string
     }, 1000);
   }, [scenario.time_limit_sec, stopTimer]);
 
+  const startPrepTimer = useCallback(() => {
+    stopPrepTimer();
+    setPrepSecondsLeft(60);
+    prepTimerRef.current = window.setInterval(() => {
+      setPrepSecondsLeft((s) => {
+        if (s <= 1) return 0;
+        return s - 1;
+      });
+    }, 1000);
+  }, [stopPrepTimer]);
+
   const cleanup = useCallback(() => {
     stopTimer();
+    stopPrepTimer();
+    setPhase("none");
+    phaseRef.current = "none";
+    examStartedRef.current = false;
+    awaitingResponseRef.current = false;
+    warn60SentRef.current = false;
+    warn10SentRef.current = false;
 
     try {
       dcRef.current?.close();
@@ -137,17 +214,93 @@ export function RealtimeExamRunner(props: { scenario: Scenario; imageUrl: string
     dc.send(JSON.stringify(evt));
   }, []);
 
+  const maybeRequestModelResponse = useCallback(
+    (reason: "start_eo1" | "user_turn" | "warning_60" | "warning_10") => {
+      if (phaseRef.current !== "exam") return;
+      const isWarning = reason === "warning_60" || reason === "warning_10";
+      if (!isWarning) {
+        if (awaitingResponseRef.current) return;
+        awaitingResponseRef.current = true;
+      }
+
+      const common = {
+        type: "response.create",
+        response: {
+          modalities: ["audio", "text"],
+        },
+      };
+
+      const instructionForReason =
+        reason === "warning_60"
+          ? "Il reste une minute. Dites une phrase courte pour inviter le candidat à conclure."
+          : reason === "warning_10"
+            ? "Il reste dix secondes. Dites une phrase très courte pour demander de conclure immédiatement."
+            : scenario.sectionKey === "A"
+              ? reason === "start_eo1"
+                ? "Démarrez l’appel: dites bonjour et 'je vous écoute' (sans suggérer de questions)."
+                : "Répondez uniquement à la question du candidat. Si besoin, posez UNE question de clarification. Ne suggérez jamais quoi demander. Si l'annonce/OCR n'a pas le détail, inventez une réponse plausible et restez cohérent ensuite."
+              : "Répondez en tant qu’ami(e) sceptique: choisissez un contre-argument approprié dans la liste fournie (paraphrase OK), puis demandez une justification/exemple. Ne créez pas de nouveaux contre-arguments.";
+
+      sendEvent({
+        ...common,
+        response: {
+          ...(common as any).response,
+          instructions: instructionForReason,
+        },
+      });
+    },
+    [scenario.sectionKey, sendEvent],
+  );
+
   const start = useCallback(async () => {
     setError(null);
     setTranscript([]);
     setEvaluation(null);
     evaluationTriggeredRef.current = false;
+    examStartedRef.current = false;
+    awaitingResponseRef.current = false;
+    setPhase("none");
+    phaseRef.current = "none";
     setSecondsLeft(scenario.time_limit_sec);
+    setPrepSecondsLeft(60);
 
     try {
       setState("requesting_mic");
       const localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
       localStreamRef.current = localStream;
+
+      // OCR (EO1 only): extract ad facts so the AI can answer consistently without guessing.
+      let ocrSnapshotLocal: null | { raw_text: string; facts: Array<{ key: string; value: string }> } = null;
+      if (scenario.sectionKey === "A") {
+        setOcrStatus("loading");
+        setOcrData(null);
+        try {
+          const ocrRes = await fetch("/api/ocr", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sectionKey: scenario.sectionKey, id: scenario.id }),
+          });
+          if (ocrRes.ok) {
+            const json = (await ocrRes.json()) as {
+              result?: { raw_text: string; facts: Array<{ key: string; value: string }> };
+            };
+            if (json?.result) {
+              ocrSnapshotLocal = { raw_text: json.result.raw_text, facts: json.result.facts ?? [] };
+              setOcrData(ocrSnapshotLocal);
+              setOcrStatus("ready");
+            } else {
+              setOcrStatus("error");
+            }
+          } else {
+            setOcrStatus("error");
+          }
+        } catch {
+          setOcrStatus("error");
+        }
+      } else {
+        setOcrStatus("idle");
+        setOcrData(null);
+      }
 
       setState("fetching_token");
       const tokenRes = await fetch("/api/realtime-token", { method: "GET" });
@@ -190,7 +343,16 @@ export function RealtimeExamRunner(props: { scenario: Scenario; imageUrl: string
             const transcriptText =
               (evt.transcript as string | undefined) ??
               ((evt.item as any)?.content?.[0]?.transcript as string | undefined);
-            if (typeof transcriptText === "string") upsertUserText(transcriptText);
+            if (typeof transcriptText === "string" && phaseRef.current === "exam") {
+              upsertUserText(transcriptText);
+              // For EO2, candidate speaks first; for both sections, respond after a candidate turn.
+              if (!examStartedRef.current) {
+                examStartedRef.current = true;
+              }
+              maybeRequestModelResponse("user_turn");
+            }
+          } else if (type === "response.completed" || type === "response.done" || type === "response.finished") {
+            awaitingResponseRef.current = false;
           } else if (type === "error") {
             setError(JSON.stringify(evt));
             setState("error");
@@ -230,6 +392,7 @@ export function RealtimeExamRunner(props: { scenario: Scenario; imageUrl: string
         dc.onopen = () => resolve();
       });
 
+      const instructions = makeExamInstructions(scenario, ocrSnapshotLocal);
       sendEvent({
         type: "session.update",
         session: {
@@ -241,20 +404,25 @@ export function RealtimeExamRunner(props: { scenario: Scenario; imageUrl: string
         },
       });
 
-      // Start the examiner
+      // Pre-brief (spoken), then 60s prep silence, then exam start.
+      setPhase("prebrief");
+      phaseRef.current = "prebrief";
+      appendLine({ role: "system", text: "Connexion établie. Instructions..." });
       sendEvent({
         type: "response.create",
         response: {
           modalities: ["audio", "text"],
-          instructions:
-            scenario.sectionKey === "A"
-              ? "Commence l’épreuve EO1 maintenant. Salue brièvement puis lance la conversation. Pose une première question."
-              : "Commence l’épreuve EO2 maintenant. Lance la discussion avec un ton d’ami(e) sceptique puis invite le candidat à te convaincre.",
+          instructions: prebrief,
         },
       });
 
-      startTimer();
-      appendLine({ role: "system", text: "Connexion établie. L’épreuve commence." });
+      // Give the model a moment to speak the pre-brief, then start prep countdown.
+      await new Promise((r) => setTimeout(r, 3500));
+
+      setPhase("prep");
+      phaseRef.current = "prep";
+      appendLine({ role: "system", text: "Préparation: 60 secondes (ne pas parler)." });
+      startPrepTimer();
       setState("connected");
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -262,7 +430,20 @@ export function RealtimeExamRunner(props: { scenario: Scenario; imageUrl: string
       setState("error");
       cleanup();
     }
-  }, [appendLine, cleanup, instructions, scenario.sectionKey, scenario.time_limit_sec, sendEvent, startTimer, upsertAssistantDelta, upsertUserText]);
+  }, [
+    appendLine,
+    cleanup,
+    maybeRequestModelResponse,
+    prebrief,
+    ocrData,
+    scenario.id,
+    scenario.sectionKey,
+    scenario.time_limit_sec,
+    sendEvent,
+    startPrepTimer,
+    upsertAssistantDelta,
+    upsertUserText,
+  ]);
 
   const evaluateNow = useCallback(async () => {
     if (isEvaluating) return;
@@ -350,10 +531,15 @@ export function RealtimeExamRunner(props: { scenario: Scenario; imageUrl: string
   useEffect(() => {
     // Reset timer if user navigates to another scenario
     setSecondsLeft(scenario.time_limit_sec);
+    setPrepSecondsLeft(60);
     setTranscript([]);
     setError(null);
     setEvaluation(null);
     evaluationTriggeredRef.current = false;
+    examStartedRef.current = false;
+    awaitingResponseRef.current = false;
+    setPhase("none");
+    phaseRef.current = "none";
     setState("idle");
     cleanup();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -361,9 +547,45 @@ export function RealtimeExamRunner(props: { scenario: Scenario; imageUrl: string
 
   useEffect(() => {
     if (state !== "connected") return;
+    if (phaseRef.current !== "exam") return;
     if (secondsLeft > 0) return;
     void handleTimeout();
   }, [secondsLeft, state, handleTimeout]);
+
+  useEffect(() => {
+    if (state !== "connected") return;
+    if (phaseRef.current !== "prep") return;
+    if (prepSecondsLeft > 0) return;
+
+    // Prep finished -> start the exam timer and (for EO1) initiate the call.
+    setPhase("exam");
+    phaseRef.current = "exam";
+    appendLine({ role: "system", text: "Début de l’épreuve." });
+    startTimer();
+
+    if (scenario.sectionKey === "A") {
+      examStartedRef.current = true;
+      maybeRequestModelResponse("start_eo1");
+    } else {
+      // EO2: candidate speaks first. We wait for the first candidate turn.
+      examStartedRef.current = false;
+      appendLine({ role: "system", text: "Vous commencez: parlez en premier pour me convaincre." });
+    }
+  }, [appendLine, maybeRequestModelResponse, prepSecondsLeft, scenario.sectionKey, startTimer, state]);
+
+  useEffect(() => {
+    if (state !== "connected") return;
+    if (phaseRef.current !== "exam") return;
+
+    if (secondsLeft === 60 && !warn60SentRef.current) {
+      warn60SentRef.current = true;
+      maybeRequestModelResponse("warning_60");
+    }
+    if (secondsLeft === 10 && !warn10SentRef.current) {
+      warn10SentRef.current = true;
+      maybeRequestModelResponse("warning_10");
+    }
+  }, [maybeRequestModelResponse, secondsLeft, state]);
 
   return (
     <div className="flex h-full flex-col gap-4">
@@ -376,9 +598,32 @@ export function RealtimeExamRunner(props: { scenario: Scenario; imageUrl: string
               {state}
             </span>
           </div>
+          <div className="text-xs text-zinc-600">
+            Phase: <span className="font-medium">{phase}</span>
+          </div>
+          {scenario.sectionKey === "A" ? (
+            <div className="text-xs text-zinc-600">
+              OCR:{" "}
+              <span
+                className={cn(
+                  ocrStatus === "ready" ? "text-emerald-700" : ocrStatus === "error" ? "text-red-700" : "",
+                )}
+              >
+                {ocrStatus}
+              </span>
+            </div>
+          ) : null}
         </div>
         <div className="rounded-lg border bg-zinc-50 px-3 py-1.5 text-sm font-medium tabular-nums">
-          {formatTimeMMSS(secondsLeft)}
+          {phase === "prep" ? (
+            <span>
+              Prep: {formatTimeMMSS(prepSecondsLeft)}
+            </span>
+          ) : (
+            <span>
+              Temps: {formatTimeMMSS(secondsLeft)}
+            </span>
+          )}
         </div>
       </div>
 
@@ -412,24 +657,36 @@ export function RealtimeExamRunner(props: { scenario: Scenario; imageUrl: string
         </button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto rounded-lg border bg-white p-3">
-        {transcript.length === 0 ? (
-          <div className="text-sm text-zinc-500">
-            Cliquez <span className="font-medium">Démarrer</span>, autorisez le micro, puis parlez normalement.
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {transcript.map((line) => (
-              <div key={line.id} className="text-sm">
-                <div className="text-xs font-medium text-zinc-500">
-                  {line.role === "assistant" ? "Examinateur" : line.role === "user" ? "Candidat" : "Système"}
+      <details
+        className="rounded-lg border bg-white"
+        open={isTranscriptOpen}
+        onToggle={(e) => setIsTranscriptOpen((e.target as HTMLDetailsElement).open)}
+      >
+        <summary className="cursor-pointer select-none px-3 py-2 text-sm font-medium">
+          Transcript{" "}
+          <span className="text-xs font-normal text-zinc-500">
+            ({transcript.length ? `${transcript.length} lignes` : "vide"})
+          </span>
+        </summary>
+        <div className="min-h-0 max-h-80 overflow-auto border-t p-3">
+          {transcript.length === 0 ? (
+            <div className="text-sm text-zinc-500">
+              Cliquez <span className="font-medium">Démarrer</span>, autorisez le micro, puis parlez normalement.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {transcript.map((line) => (
+                <div key={line.id} className="text-sm">
+                  <div className="text-xs font-medium text-zinc-500">
+                    {line.role === "assistant" ? "Examinateur" : line.role === "user" ? "Candidat" : "Système"}
+                  </div>
+                  <div className="whitespace-pre-wrap text-zinc-900">{line.text}</div>
                 </div>
-                <div className="whitespace-pre-wrap text-zinc-900">{line.text}</div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </details>
 
       {evaluation ? <EvaluationPanel evaluation={evaluation} /> : null}
     </div>
@@ -459,10 +716,10 @@ function EvaluationPanel(props: { evaluation: any }) {
     );
   }
 
-  const criteria = Array.isArray(result.criteria) ? result.criteria : [];
-  const strengths = Array.isArray(result.strengths) ? result.strengths : [];
-  const topImprovements = Array.isArray(result.top_improvements) ? result.top_improvements : [];
-  const upgraded = Array.isArray(result.upgraded_sentences) ? result.upgraded_sentences : [];
+  const criteria = normalizeCriteria(result.criteria);
+  const strengths = normalizeStringList(result.strengths);
+  const topImprovements = normalizeStringList(result.top_improvements);
+  const upgraded = normalizeUpgraded(result.upgraded_sentences);
 
   return (
     <div className="rounded-lg border bg-white p-3">
@@ -474,7 +731,7 @@ function EvaluationPanel(props: { evaluation: any }) {
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <div className="rounded-lg border bg-zinc-50 p-3">
           <div className="text-xs font-medium text-zinc-500">Estimation globale</div>
-          <div className="mt-1 text-lg font-semibold">{result.overall_band_estimate ?? "—"}</div>
+          <div className="mt-1 text-lg font-semibold">{String(result.overall_band_estimate ?? "—")}</div>
           <div className="mt-2 text-sm text-zinc-800">{result.overall_comment ?? ""}</div>
         </div>
 
@@ -527,9 +784,15 @@ function EvaluationPanel(props: { evaluation: any }) {
           {upgraded.length ? (
             upgraded.map((u: any, idx: number) => (
               <div key={idx} className="rounded border bg-zinc-50 p-2 text-sm">
-                <div className="text-zinc-500">Avant</div>
-                <div className="text-zinc-900">{u.weak ?? ""}</div>
-                <div className="mt-2 text-zinc-500">Mieux</div>
+                {u.weak ? (
+                  <>
+                    <div className="text-zinc-500">Avant</div>
+                    <div className="text-zinc-900">{u.weak}</div>
+                    <div className="mt-2 text-zinc-500">Mieux</div>
+                  </>
+                ) : (
+                  <div className="text-zinc-500">Suggestion</div>
+                )}
                 <div className="text-zinc-900">{u.better ?? ""}</div>
                 {u.why ? <div className="mt-2 text-zinc-700">Pourquoi: {u.why}</div> : null}
               </div>
@@ -541,6 +804,75 @@ function EvaluationPanel(props: { evaluation: any }) {
       </div>
     </div>
   );
+}
+
+function normalizeStringList(val: unknown): string[] {
+  if (Array.isArray(val)) {
+    return val.filter((x) => typeof x === "string").map((x) => x.trim()).filter(Boolean);
+  }
+  if (typeof val === "string") {
+    const s = val.trim();
+    if (!s) return [];
+    // If the model returned a paragraph, keep it as one bullet.
+    return [s];
+  }
+  return [];
+}
+
+function normalizeCriteria(val: unknown): Array<{ name: string; score_0_10: number; comment?: string; improvements?: string[] }> {
+  if (Array.isArray(val)) {
+    return val
+      .filter((x) => x && typeof x === "object" && typeof (x as any).name === "string")
+      .map((x: any) => ({
+        name: x.name,
+        score_0_10: Number.isFinite(x.score_0_10) ? x.score_0_10 : Number.isFinite(x.score) ? x.score : 0,
+        comment: typeof x.comment === "string" ? x.comment : undefined,
+        improvements: Array.isArray(x.improvements) ? x.improvements.filter((i: any) => typeof i === "string") : undefined,
+      }));
+  }
+
+  // Support object form: { task_fulfillment: 7, ... }
+  if (val && typeof val === "object") {
+    const entries = Object.entries(val as Record<string, unknown>);
+    return entries
+      .filter(([, v]) => typeof v === "number" && Number.isFinite(v))
+      .map(([k, v]) => ({
+        name: humanizeCriterionKey(k),
+        score_0_10: v as number,
+      }));
+  }
+
+  return [];
+}
+
+function humanizeCriterionKey(k: string) {
+  const map: Record<string, string> = {
+    task_fulfillment: "Task fulfillment / pertinence",
+    coherence_organization: "Coherence & organization",
+    lexical_range_appropriateness: "Lexical range & appropriateness",
+    grammar_control: "Grammar control",
+    fluency_pronunciation: "Fluency & pronunciation",
+    interaction: "Interaction",
+  };
+  return map[k] ?? k.replace(/_/g, " ");
+}
+
+function normalizeUpgraded(val: unknown): Array<{ weak?: string; better: string; why?: string }> {
+  if (Array.isArray(val)) {
+    // Already structured objects?
+    const objs = val.filter((x) => x && typeof x === "object" && typeof (x as any).better === "string");
+    if (objs.length) {
+      return objs.map((u: any) => ({
+        weak: typeof u.weak === "string" ? u.weak : undefined,
+        better: u.better,
+        why: typeof u.why === "string" ? u.why : undefined,
+      }));
+    }
+    // Otherwise it's probably an array of strings (suggested sentences)
+    const strs = val.filter((x) => typeof x === "string").map((s) => s.trim()).filter(Boolean);
+    return strs.map((s) => ({ better: s }));
+  }
+  return [];
 }
 
 
