@@ -98,12 +98,14 @@ export function EvaluationPanel(props: {
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="summary">
-          <TabsList className="w-full justify-start">
-            <TabsTrigger value="summary">Résumé</TabsTrigger>
-            <TabsTrigger value="criteria">Critères</TabsTrigger>
-            <TabsTrigger value="sentences">Phrases</TabsTrigger>
-            <TabsTrigger value="model">Réponse modèle</TabsTrigger>
-          </TabsList>
+          <div className="overflow-x-auto">
+            <TabsList className="inline-flex w-full justify-start min-w-max sm:min-w-0 sm:w-full">
+              <TabsTrigger value="summary" className="whitespace-nowrap">Résumé</TabsTrigger>
+              <TabsTrigger value="criteria" className="whitespace-nowrap">Critères</TabsTrigger>
+              <TabsTrigger value="sentences" className="whitespace-nowrap">Phrases</TabsTrigger>
+              <TabsTrigger value="model" className="whitespace-nowrap">Réponse modèle</TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="summary" className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-2">

@@ -1,12 +1,8 @@
 import Link from "next/link";
-import { ModeToggle } from "@/components/mode-toggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { SignInButton } from "@/components/auth/SignInButton";
-import { SignUpButton } from "@/components/auth/SignUpButton";
-import { UserButton } from "@/components/auth/UserButton";
 import { auth } from "@clerk/nextjs/server";
 
 export default async function Home() {
@@ -17,22 +13,11 @@ export default async function Home() {
     return (
       <main className="min-h-screen bg-background text-foreground">
         <div className="mx-auto max-w-4xl p-4 sm:p-6">
-          <header className="flex flex-col items-start justify-between gap-4 sm:flex-row">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <Badge variant="secondary">TEF Canada</Badge>
-                <Badge variant="outline">Expression Orale</Badge>
-              </div>
-              <h1 className="text-3xl font-semibold tracking-tight">Simulateur TEF Canada</h1>
-              <p className="text-sm text-muted-foreground">
-                Préparez-vous à l&apos;examen d&apos;expression orale avec un simulateur réaliste utilisant l&apos;IA.
-              </p>
-            </div>
-            <div className="flex items-center gap-2 self-end sm:self-auto">
-              <SignInButton />
-              <SignUpButton />
-              <ModeToggle />
-            </div>
+          <header className="space-y-2">
+            <h1 className="text-3xl font-semibold tracking-tight">Simulateur TEF Canada</h1>
+            <p className="text-sm text-muted-foreground">
+              Préparez-vous à l&apos;examen d&apos;expression orale avec un simulateur réaliste utilisant l&apos;IA.
+            </p>
           </header>
 
           <div className="mt-12 space-y-8">
@@ -103,12 +88,8 @@ export default async function Home() {
 
             <div className="text-center space-y-4 pt-4">
               <p className="text-lg font-medium">Prêt à commencer ?</p>
-              <div className="flex items-center justify-center gap-3">
-                <SignUpButton />
-                <SignInButton />
-              </div>
               <p className="text-sm text-muted-foreground">
-                Créez un compte gratuit pour accéder au simulateur et sauvegarder vos résultats.
+                Utilisez les boutons de connexion dans la barre de navigation pour créer un compte gratuit et accéder au simulateur.
               </p>
             </div>
           </div>
@@ -121,24 +102,11 @@ export default async function Home() {
   return (
     <main className="min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-4xl p-4 sm:p-6">
-        <header className="flex flex-col items-start justify-between gap-4 sm:flex-row">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Badge variant="secondary">TEF Canada</Badge>
-              <Badge variant="outline">Expression Orale</Badge>
-            </div>
-            <h1 className="text-3xl font-semibold tracking-tight">Simulateur (EO1 / EO2)</h1>
-            <p className="text-sm text-muted-foreground">
-              Choisissez une section puis lancez une simulation. L&apos;examinateur est simulé en voix via l&apos;API Realtime.
-            </p>
-          </div>
-          <div className="flex items-center gap-2 self-end sm:self-auto">
-            <Button asChild variant="outline" size="sm">
-              <Link href="/history">Historique</Link>
-            </Button>
-            <UserButton />
-            <ModeToggle />
-          </div>
+        <header className="space-y-2">
+          <h1 className="text-3xl font-semibold tracking-tight">Simulateur (EO1 / EO2)</h1>
+          <p className="text-sm text-muted-foreground">
+            Choisissez une section puis lancez une simulation. L&apos;examinateur est simulé en voix via l&apos;API Realtime.
+          </p>
         </header>
 
         {/* Mobile: tabs. Desktop: 2-column cards. */}

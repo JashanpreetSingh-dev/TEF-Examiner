@@ -1,14 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 
-import { ModeToggle } from "@/components/mode-toggle";
 import { EvaluationPanel } from "@/components/session/EvaluationPanel";
 import { TranscriptPanel } from "@/components/session/TranscriptPanel";
 import type { TranscriptLine } from "@/components/session/types";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getImageUrl } from "@/lib/kb";
 
@@ -179,19 +176,7 @@ export function ResultsClient(props: { sectionParam: string; sid?: string }) {
 
   return (
     <main className="mx-auto min-h-dvh max-w-4xl p-4 sm:p-6">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <Button asChild variant="outline">
-            <Link href={`/session/${props.sectionParam}`}>Nouvelle tâche</Link>
-          </Button>
-          <Button asChild variant="ghost">
-            <Link href="/">Accueil</Link>
-          </Button>
-        </div>
-        <ModeToggle />
-      </div>
-
-      <div className="mt-6 space-y-6">
+      <div className="space-y-6">
         <Card>
           <CardHeader className="space-y-1">
             <CardTitle>Résultats</CardTitle>

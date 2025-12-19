@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ClerkThemeProvider } from "@/components/auth/ClerkThemeProvider";
+import { Navbar } from "@/components/navbar/Navbar";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -28,7 +29,10 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} min-h-dvh overflow-x-hidden antialiased`}>
         <ThemeProvider>
-          <ClerkThemeProvider>{children}</ClerkThemeProvider>
+          <ClerkThemeProvider>
+            <Navbar />
+            {children}
+          </ClerkThemeProvider>
         </ThemeProvider>
       </body>
     </html>

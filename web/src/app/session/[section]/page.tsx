@@ -1,12 +1,9 @@
 import Image from "next/image";
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 
 import { getImageUrl, getRandomScenario, type Section } from "@/lib/kb";
 import { RealtimeExamRunner } from "./realtime-exam-runner";
-import { ModeToggle } from "@/components/mode-toggle";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
 export default async function SessionPage(props: { params: Promise<{ section?: string }> }) {
@@ -32,13 +29,6 @@ export default async function SessionPage(props: { params: Promise<{ section?: s
   return (
     <main className="mx-auto h-dvh max-w-6xl overflow-hidden p-4 sm:p-6">
       <div className="flex h-full flex-col gap-6">
-        <header className="flex items-start justify-between gap-4">
-          <Button asChild variant="outline">
-            <Link href="/">Retour</Link>
-          </Button>
-          <ModeToggle />
-        </header>
-
         <p className="text-sm text-muted-foreground overflow-hidden [display:-webkit-box] [-webkit-line-clamp:2] [-webkit-box-orient:vertical]">
           {scenario.prompt}
         </p>
