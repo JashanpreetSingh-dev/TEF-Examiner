@@ -4,9 +4,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
+type Criterion = { name: string; score_0_10: number; comment?: string; improvements?: string[] };
+type UpgradedSentence = { weak?: string; better: string; why?: string };
+
+function isRecord(val: unknown): val is Record<string, unknown> {
+  return Boolean(val) && typeof val === "object";
+}
+
 export function EvaluationPanel(props: {
   status: "idle" | "loading" | "done" | "error";
-  evaluation?: any;
+  evaluation?: unknown;
   error?: string | null;
 }) {
   if (props.status === "idle") {
@@ -41,7 +48,8 @@ export function EvaluationPanel(props: {
     );
   }
 
-  const result = props.evaluation?.result;
+  const evalObj = isRecord(props.evaluation) ? props.evaluation : null;
+  const result = evalObj && isRecord(evalObj.result) ? evalObj.result : null;
 
   if (!result) {
     return (
@@ -51,7 +59,7 @@ export function EvaluationPanel(props: {
     );
   }
 
-  if (result.raw) {
+  if ("raw" in result && result.raw) {
     return (
       <Panel title="Évaluation">
         <div className="rounded bg-zinc-50 p-3 text-xs whitespace-pre-wrap">{String(result.raw)}</div>
@@ -70,19 +78,23 @@ export function EvaluationPanel(props: {
         <div className="flex items-center justify-between gap-3">
           <CardTitle>Évaluation</CardTitle>
           <div className="flex items-center gap-2">
-            {props.evaluation?.metrics?.eo1_question_count != null ? (
+            {evalObj && isRecord(evalObj.metrics) && evalObj.metrics.eo1_question_count != null ? (
               <Badge variant="outline">
-                Questions: {String(props.evaluation.metrics.eo1_question_count)}
-                {props.evaluation?.metrics?.eo1_question_target ? `/${String(props.evaluation.metrics.eo1_question_target)}` : ""}
+                Questions: {String(evalObj.metrics.eo1_question_count)}
+                {evalObj.metrics.eo1_question_target ? `/${String(evalObj.metrics.eo1_question_target)}` : ""}
               </Badge>
             ) : null}
-            {result?.cecr_level ? <Badge variant="secondary">CECR: {String(result.cecr_level)}</Badge> : null}
-            {result?.clb_equivalence ? <Badge variant="secondary">CLB: {String(result.clb_equivalence)}</Badge> : null}
-            <Badge variant="secondary">{props.evaluation?.model ?? "?"}</Badge>
-            <Badge variant="outline">{String(result.overall_band_estimate ?? "—")}</Badge>
+            {"cecr_level" in result && result.cecr_level ? <Badge variant="secondary">CECR: {String(result.cecr_level)}</Badge> : null}
+            {"clb_equivalence" in result && result.clb_equivalence ? <Badge variant="secondary">CLB: {String(result.clb_equivalence)}</Badge> : null}
+            <Badge variant="secondary">{evalObj?.model ? String(evalObj.model) : "?"}</Badge>
+            <Badge variant="outline">{
+              "overall_band_estimate" in result && result.overall_band_estimate != null ? String(result.overall_band_estimate) : "—"
+            }</Badge>
           </div>
         </div>
-        {result.overall_comment ? <div className="text-sm text-muted-foreground">{result.overall_comment}</div> : null}
+        {"overall_comment" in result && result.overall_comment ? (
+          <div className="text-sm text-muted-foreground">{String(result.overall_comment)}</div>
+        ) : null}
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="summary">
@@ -111,7 +123,7 @@ export function EvaluationPanel(props: {
 
           <TabsContent value="criteria" className="space-y-3">
             {criteria.length ? (
-              criteria.map((c: any) => (
+              criteria.map((c) => (
                 <div key={c.name} className="rounded-lg border p-3">
                   <div className="flex items-center justify-between gap-2">
                     <div className="text-sm font-medium">{c.name}</div>
@@ -137,7 +149,7 @@ export function EvaluationPanel(props: {
 
           <TabsContent value="sentences" className="space-y-2">
             {upgraded.length ? (
-              upgraded.map((u: any, idx: number) => (
+              upgraded.map((u, idx: number) => (
                 <div key={idx} className="rounded-lg border bg-muted/30 p-3 text-sm">
                   {u.weak ? (
                     <>
@@ -188,16 +200,23 @@ function normalizeStringList(val: unknown): string[] {
   return [];
 }
 
-function normalizeCriteria(val: unknown): Array<{ name: string; score_0_10: number; comment?: string; improvements?: string[] }> {
+function normalizeCriteria(val: unknown): Criterion[] {
   if (Array.isArray(val)) {
     return val
-      .filter((x) => x && typeof x === "object" && typeof (x as any).name === "string")
-      .map((x: any) => ({
-        name: x.name,
-        score_0_10: Number.isFinite(x.score_0_10) ? x.score_0_10 : Number.isFinite(x.score) ? x.score : 0,
-        comment: typeof x.comment === "string" ? x.comment : undefined,
-        improvements: Array.isArray(x.improvements) ? x.improvements.filter((i: any) => typeof i === "string") : undefined,
-      }));
+      .filter((x): x is Record<string, unknown> => isRecord(x) && typeof x.name === "string")
+      .map((x) => {
+        const scoreRaw = typeof x.score_0_10 === "number" ? x.score_0_10 : typeof x.score === "number" ? x.score : 0;
+        const improvementsRaw = x.improvements;
+        const improvements = Array.isArray(improvementsRaw)
+          ? improvementsRaw.filter((i): i is string => typeof i === "string")
+          : undefined;
+        return {
+          name: x.name,
+          score_0_10: Number.isFinite(scoreRaw) ? scoreRaw : 0,
+          comment: typeof x.comment === "string" ? x.comment : undefined,
+          improvements,
+        };
+      });
   }
 
   if (val && typeof val === "object") {
@@ -206,7 +225,7 @@ function normalizeCriteria(val: unknown): Array<{ name: string; score_0_10: numb
       .filter(([, v]) => typeof v === "number" && Number.isFinite(v))
       .map(([k, v]) => ({
         name: humanizeCriterionKey(k),
-        score_0_10: v as number,
+        score_0_10: v,
       }));
   }
 
@@ -225,13 +244,13 @@ function humanizeCriterionKey(k: string) {
   return map[k] ?? k.replace(/_/g, " ");
 }
 
-function normalizeUpgraded(val: unknown): Array<{ weak?: string; better: string; why?: string }> {
+function normalizeUpgraded(val: unknown): UpgradedSentence[] {
   if (Array.isArray(val)) {
-    const objs = val.filter((x) => x && typeof x === "object" && typeof (x as any).better === "string");
+    const objs = val.filter((x): x is Record<string, unknown> => isRecord(x) && typeof x.better === "string");
     if (objs.length) {
-      return objs.map((u: any) => ({
+      return objs.map((u) => ({
         weak: typeof u.weak === "string" ? u.weak : undefined,
-        better: u.better,
+        better: String(u.better),
         why: typeof u.why === "string" ? u.why : undefined,
       }));
     }

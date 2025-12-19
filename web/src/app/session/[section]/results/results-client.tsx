@@ -17,7 +17,7 @@ type StoredResults = {
   scenario: { sectionKey: "A" | "B"; id: number; prompt: string; time_limit_sec: number };
   finalTranscript: TranscriptLine[];
   finalTranscriptForEval: Array<{ role: "user" | "assistant"; text: string }>;
-  evaluation?: any;
+  evaluation?: unknown;
 };
 
 export function ResultsClient(props: { sectionParam: string; sid?: string }) {
@@ -29,7 +29,7 @@ export function ResultsClient(props: { sectionParam: string; sid?: string }) {
   const [isTranscriptOpen, setIsTranscriptOpen] = useState(true);
 
   const [evalStatus, setEvalStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
-  const [evalJson, setEvalJson] = useState<any>(null);
+  const [evalJson, setEvalJson] = useState<unknown>(null);
   const [evalError, setEvalError] = useState<string | null>(null);
 
   useEffect(() => {

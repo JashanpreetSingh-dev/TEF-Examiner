@@ -21,11 +21,17 @@ type RunnerMode = "live" | "results";
 type StopReason = "user_stop" | "timeout";
 type EvaluationStatus = "idle" | "loading" | "done" | "error";
 
-function isIgnorableRealtimeError(evt: any): boolean {
-  const code = evt?.error?.code;
+function isRecord(val: unknown): val is Record<string, unknown> {
+  return Boolean(val) && typeof val === "object";
+}
+
+function isIgnorableRealtimeError(evt: unknown): boolean {
+  if (!isRecord(evt)) return false;
+  const err = isRecord(evt.error) ? evt.error : null;
+  const code = err && typeof err.code === "string" ? err.code : undefined;
   if (code === "conversation_already_has_active_response") return true;
 
-  const msg = String(evt?.error?.message ?? "");
+  const msg = String(err && "message" in err ? (err as Record<string, unknown>).message ?? "" : "");
   if (msg.includes("Conversation already has an active response in progress")) return true;
 
   return false;
@@ -36,7 +42,7 @@ type SessionSummary = {
   endedReason: StopReason;
   finalTranscript: TranscriptLine[];
   finalTranscriptForEval: Array<{ role: "user" | "assistant"; text: string }>;
-  evaluation: any | null;
+  evaluation: unknown | null;
   evaluationStatus: EvaluationStatus;
   evaluationError: string | null;
 };
@@ -265,33 +271,6 @@ export function RealtimeExamRunner(props: { scenario: Scenario; imageUrl: string
     }
   }, []);
 
-  const stopSession = useCallback(
-    (reason: StopReason) => {
-      // Capture a stable snapshot for Results mode + evaluation.
-      const finalTranscript = transcriptRef.current.slice();
-      const finalTranscriptForEval = toEvalTranscript(finalTranscript);
-
-      const summary: SessionSummary = {
-        endedAtMs: Date.now(),
-        endedReason: reason,
-        finalTranscript,
-        finalTranscriptForEval,
-        evaluation: null,
-        evaluationStatus: "idle",
-        evaluationError: null,
-      };
-
-      teardownRealtime();
-      setState("stopped");
-      setMode("results");
-      setSessionSummary(summary);
-      setIsTranscriptOpen(true);
-
-      return summary;
-    },
-    [teardownRealtime],
-  );
-
   const sendEvent = useCallback((evt: Record<string, unknown>) => {
     const dc = dcRef.current;
     if (!dc || dc.readyState !== "open") return;
@@ -310,9 +289,9 @@ export function RealtimeExamRunner(props: { scenario: Scenario; imageUrl: string
       }
 
       const common = {
-        type: "response.create",
+        type: "response.create" as const,
         response: {
-          modalities: ["audio", "text"],
+          modalities: ["audio", "text"] as const,
         },
       };
 
@@ -335,7 +314,7 @@ export function RealtimeExamRunner(props: { scenario: Scenario; imageUrl: string
       sendEvent({
         ...common,
         response: {
-          ...(common as any).response,
+          ...common.response,
           instructions: `${brevity}\n${instructionForReason}`,
         },
       });
@@ -432,18 +411,6 @@ export function RealtimeExamRunner(props: { scenario: Scenario; imageUrl: string
             upsertAssistantDelta(evt.delta);
           } else if (type === "response.output_text.delta" && typeof evt.delta === "string") {
             upsertAssistantDelta(evt.delta);
-          } else if (type === "conversation.item.input_audio_transcription.completed") {
-            const transcriptText =
-              (evt.transcript as string | undefined) ??
-              ((evt.item as any)?.content?.[0]?.transcript as string | undefined);
-            if (typeof transcriptText === "string" && phaseRef.current === "exam") {
-              upsertUserText(transcriptText);
-              // For EO2, candidate speaks first; for both sections, respond after a candidate turn.
-              if (!examStartedRef.current) {
-                examStartedRef.current = true;
-              }
-              maybeRequestModelResponse("user_turn");
-            }
           } else if (type === "response.completed" || type === "response.done" || type === "response.finished") {
             awaitingResponseRef.current = false;
           } else if (type === "error") {

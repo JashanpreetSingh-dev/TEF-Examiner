@@ -9,7 +9,7 @@ function envBrevityPreset(): BrevityPreset {
 }
 
 function envInt(name: string, fallback: number) {
-  const v = Number.parseInt(String((process.env as any)[name] ?? ""), 10);
+  const v = Number.parseInt(String(process.env[name] ?? ""), 10);
   return Number.isFinite(v) && v > 0 ? v : fallback;
 }
 

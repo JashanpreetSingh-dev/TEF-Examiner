@@ -28,6 +28,12 @@ type EvalResult = {
   }>;
 };
 
+type ChatCompletionsResponse = {
+  choices?: Array<{
+    message?: { content?: unknown };
+  }>;
+};
+
 type EvalMetrics = {
   eo1_question_count?: number;
   eo1_question_target?: string;
@@ -144,8 +150,8 @@ export async function POST(req: Request) {
     );
   }
 
-  const data = (await res.json()) as any;
-  const content = data?.choices?.[0]?.message?.content;
+  const data = (await res.json()) as ChatCompletionsResponse;
+  const content = data.choices?.[0]?.message?.content;
   if (typeof content !== "string") {
     return NextResponse.json({ error: "Unexpected evaluator response." }, { status: 500 });
   }

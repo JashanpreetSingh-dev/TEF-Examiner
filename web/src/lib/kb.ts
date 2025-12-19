@@ -33,12 +33,15 @@ const eo1 = eo1Raw as EO1Item[];
 const eo2 = eo2Raw as EO2Item[];
 
 export function getRandomScenario(section: Section): Scenario {
-  const arr = section === "A" ? eo1 : eo2;
-  const idx = Math.floor(Math.random() * arr.length);
-  const picked = arr[idx];
-  return section === "A"
-    ? ({ sectionKey: "A", ...picked } satisfies Scenario)
-    : ({ sectionKey: "B", ...picked } satisfies Scenario);
+  if (section === "A") {
+    const idx = Math.floor(Math.random() * eo1.length);
+    const picked = eo1[idx];
+    return { sectionKey: "A", ...picked } satisfies Scenario;
+  }
+
+  const idx = Math.floor(Math.random() * eo2.length);
+  const picked = eo2[idx];
+  return { sectionKey: "B", ...picked } satisfies Scenario;
 }
 
 export function getImageUrl(section: Section, id: number): string {
