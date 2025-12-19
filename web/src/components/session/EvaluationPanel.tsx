@@ -203,7 +203,17 @@ function normalizeStringList(val: unknown): string[] {
 function normalizeCriteria(val: unknown): Criterion[] {
   if (Array.isArray(val)) {
     return val
-      .filter((x): x is Record<string, unknown> => isRecord(x) && typeof x.name === "string")
+      .filter(
+        (
+          x,
+        ): x is {
+          name: string;
+          score_0_10?: unknown;
+          score?: unknown;
+          comment?: unknown;
+          improvements?: unknown;
+        } => isRecord(x) && typeof (x as Record<string, unknown>).name === "string",
+      )
       .map((x) => {
         const scoreRaw = typeof x.score_0_10 === "number" ? x.score_0_10 : typeof x.score === "number" ? x.score : 0;
         const improvementsRaw = x.improvements;
@@ -222,7 +232,7 @@ function normalizeCriteria(val: unknown): Criterion[] {
   if (val && typeof val === "object") {
     const entries = Object.entries(val as Record<string, unknown>);
     return entries
-      .filter(([, v]) => typeof v === "number" && Number.isFinite(v))
+      .filter((entry): entry is [string, number] => typeof entry[1] === "number" && Number.isFinite(entry[1]))
       .map(([k, v]) => ({
         name: humanizeCriterionKey(k),
         score_0_10: v,
