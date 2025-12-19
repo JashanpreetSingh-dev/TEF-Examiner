@@ -198,7 +198,9 @@ export function RealtimeExamRunner(props: { scenario: Scenario; imageUrl: string
               ? reason === "start_eo1"
                 ? "Démarrez l’appel: dites bonjour et 'je vous écoute' (sans suggérer de questions)."
                 : "Répondez uniquement à la question du candidat. Si le candidat dit seulement « je voudrais des informations / je veux poser des questions / je vous appelle pour me renseigner » sans question précise: répondez uniquement « Très bien, quelle est votre question ? » (ou équivalent) et rien d’autre. INTERDICTION: ne posez pas de questions de relance et ne terminez jamais par une question. Vous pouvez poser UNE SEULE question de clarification uniquement si la demande est ambiguë. Ne suggérez jamais quoi demander. Si l'annonce/OCR n'a pas le détail, inventez une réponse plausible et restez cohérent ensuite."
-              : "Répondez en tant qu’ami(e) sceptique: choisissez un contre-argument approprié dans la liste fournie (paraphrase OK), puis demandez une justification/exemple. Ne créez pas de nouveaux contre-arguments.";
+              : secondsLeft > 20
+                ? "Répondez en tant qu'ami(e) sceptique: choisissez un contre-argument approprié dans la liste fournie (paraphrase OK), puis demandez une justification/exemple. Ne créez pas de nouveaux contre-arguments. CONTINUEZ à pousser avec des contre-arguments même si le candidat donne de bonnes réponses — c'est une épreuve de persuasion."
+                : "Répondez en tant qu'ami(e) sceptique: vous pouvez commencer à montrer que vous êtes partiellement convaincu(e) (ex: « OK, je vois ton point ») pour permettre une conclusion naturelle, mais continuez à utiliser les contre-arguments de la liste si approprié.";
 
       const brevity = makeBrevityInstruction(
         scenario.sectionKey,
@@ -223,7 +225,7 @@ export function RealtimeExamRunner(props: { scenario: Scenario; imageUrl: string
         setRtDebug((prev) => ({ ...prev, responsesCreated: prev.responsesCreated + 1 }));
       }
     },
-    [scenario.sectionKey, sendEvent, showTokenDebug],
+    [scenario.sectionKey, secondsLeft, sendEvent, showTokenDebug],
   );
 
   const connectRealtimeAndStartExam = useCallback(async () => {

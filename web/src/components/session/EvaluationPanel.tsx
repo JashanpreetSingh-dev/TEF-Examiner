@@ -102,6 +102,7 @@ export function EvaluationPanel(props: {
             <TabsTrigger value="summary">Résumé</TabsTrigger>
             <TabsTrigger value="criteria">Critères</TabsTrigger>
             <TabsTrigger value="sentences">Phrases</TabsTrigger>
+            <TabsTrigger value="model">Réponse modèle</TabsTrigger>
           </TabsList>
 
           <TabsContent value="summary" className="space-y-4">
@@ -164,6 +165,17 @@ export function EvaluationPanel(props: {
                   {u.why ? <div className="mt-2 text-xs text-muted-foreground">Pourquoi: {u.why}</div> : null}
                 </div>
               ))
+            ) : (
+              <div className="text-sm text-muted-foreground">—</div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="model" className="space-y-3">
+            {"model_answer" in result && result.model_answer ? (
+              <div className="rounded-lg border bg-muted/30 p-4">
+                <div className="text-xs font-medium text-muted-foreground mb-2">Exemple de réponse modèle (niveau B2-C1)</div>
+                <div className="text-sm whitespace-pre-wrap leading-relaxed">{String(result.model_answer)}</div>
+              </div>
             ) : (
               <div className="text-sm text-muted-foreground">—</div>
             )}

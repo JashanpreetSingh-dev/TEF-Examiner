@@ -123,6 +123,7 @@ export async function POST(req: Request) {
         "cecr_level",
         "clb_equivalence",
         "approximate_tef_band",
+        "model_answer",
       ],
       properties: {
         overall_band_estimate: { type: "string" },
@@ -159,6 +160,7 @@ export async function POST(req: Request) {
         cecr_level: { type: "string" },
         clb_equivalence: { type: "string" },
         approximate_tef_band: { type: "string" },
+        model_answer: { type: "string" },
       },
     },
   } as const;
