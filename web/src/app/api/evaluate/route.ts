@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import type { Scenario } from "@/lib/kb";
+import { buildRubricSystemPrompt } from "@/lib/prompts/evaluation";
 
 export const runtime = "nodejs";
 
@@ -62,31 +63,6 @@ function estimateQuestionCount(candidateText: string): { count: number; method: 
   // Avoid wildly over-counting in long paragraphs: cap to a sane range.
   count = Math.max(0, Math.min(count, 30));
   return { count, method: "heuristic" };
-}
-
-function buildRubricSystemPrompt(sectionKey: "A" | "B") {
-  return [
-    "You are a strict but helpful TEF Canada Expression Orale evaluator.",
-    "Return ONLY valid JSON (no markdown).",
-    "The candidate speaks French. Evaluate the candidate’s performance only (ignore examiner content).",
-    "If transcript is too short or missing, say so and give safe general advice.",
-    "",
-    "Score criteria from 0 to 10 (integer). Provide concise, actionable feedback.",
-    "",
-    sectionKey === "A"
-      ? "EO1 focus: interactional competence, asking relevant questions, clarity, register, turn-taking, reactivity."
-      : "EO2 focus: persuasion, argument structure, handling counter-arguments, coherence, examples, nuance.",
-    "",
-    "Use these criteria (adapt comments to the section):",
-    "- Task fulfillment / pertinence",
-    "- Coherence & organization",
-    "- Lexical range & appropriateness",
-    "- Grammar control",
-    "- Fluency & pronunciation (as inferred from transcript)",
-    "- Interaction (turn-taking, reactivity, sociolinguistic appropriateness)",
-    "",
-    "Output JSON with keys: overall_band_estimate, overall_comment, criteria, strengths, top_improvements, upgraded_sentences.",
-  ].join("\n");
 }
 
 export async function POST(req: Request) {

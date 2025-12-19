@@ -76,6 +76,8 @@ export function EvaluationPanel(props: {
                 {props.evaluation?.metrics?.eo1_question_target ? `/${String(props.evaluation.metrics.eo1_question_target)}` : ""}
               </Badge>
             ) : null}
+            {result?.cecr_level ? <Badge variant="secondary">CECR: {String(result.cecr_level)}</Badge> : null}
+            {result?.clb_equivalence ? <Badge variant="secondary">CLB: {String(result.clb_equivalence)}</Badge> : null}
             <Badge variant="secondary">{props.evaluation?.model ?? "?"}</Badge>
             <Badge variant="outline">{String(result.overall_band_estimate ?? "—")}</Badge>
           </div>
